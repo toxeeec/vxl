@@ -1,12 +1,16 @@
-use bevy::{core_pipeline::tonemapping::Tonemapping, prelude::*};
+use bevy::{
+    core_pipeline::tonemapping::Tonemapping, input::mouse::MouseMotion, prelude::*,
+    window::CursorGrabMode,
+};
 
 const PLAYER_SPEED: f32 = 10.0;
+const SENSITIVITY: f32 = 0.1;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, camera_movement)
+        .add_systems(Update, (camera_movement, camera_rotation))
         .run();
 }
 
@@ -14,6 +18,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut windows: Query<&mut Window>,
 ) {
     commands.spawn(Camera3dBundle {
         tonemapping: Tonemapping::None,
@@ -29,6 +34,10 @@ fn setup(
         }),
         ..Default::default()
     });
+
+    let mut window = windows.single_mut();
+    window.cursor.visible = false;
+    window.cursor.grab_mode = CursorGrabMode::Locked;
 }
 
 fn camera_movement(
@@ -36,7 +45,7 @@ fn camera_movement(
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
 ) {
-    let mut camera_transform = query.get_single_mut().unwrap();
+    let mut camera_transform = query.single_mut();
     let mut direction = Vec3::ZERO;
 
     if keyboard_input.pressed(KeyCode::W) {
@@ -60,4 +69,20 @@ fn camera_movement(
 
     let movement = direction.normalize_or_zero() * PLAYER_SPEED * time.delta_seconds();
     camera_transform.translation += movement;
+}
+
+fn camera_rotation(
+    mut query: Query<&mut Transform, With<Camera>>,
+    mut motion_evr: EventReader<MouseMotion>,
+) {
+    let mut camera_transform = query.single_mut();
+    let (mut yaw, mut pitch, _) = camera_transform.rotation.to_euler(EulerRot::YXZ);
+
+    let delta = motion_evr.iter().fold(Vec2::ZERO, |acc, ev| acc + ev.delta);
+    pitch -= delta.y.to_radians() * SENSITIVITY;
+    yaw -= delta.x.to_radians() * SENSITIVITY;
+    pitch = pitch.clamp(-89.9f32.to_radians(), 89.9f32.to_radians());
+
+    camera_transform.rotation =
+        Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
 }
