@@ -1,5 +1,8 @@
 use bevy::{
-    core_pipeline::tonemapping::Tonemapping, input::mouse::MouseMotion, prelude::*,
+    core_pipeline::tonemapping::Tonemapping,
+    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+    input::mouse::MouseMotion,
+    prelude::*,
     window::CursorGrabMode,
 };
 
@@ -8,11 +11,14 @@ const SENSITIVITY: f32 = 0.1;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((DefaultPlugins, FrameTimeDiagnosticsPlugin))
         .add_systems(Startup, setup)
-        .add_systems(Update, (camera_movement, camera_rotation))
+        .add_systems(Update, (camera_movement, camera_rotation, fps_display))
         .run();
 }
+
+#[derive(Component)]
+struct FpsText;
 
 fn setup(
     mut commands: Commands,
@@ -38,6 +44,25 @@ fn setup(
     let mut window = windows.single_mut();
     window.cursor.visible = false;
     window.cursor.grab_mode = CursorGrabMode::Locked;
+
+    let text_style = TextStyle {
+        font_size: 24.0,
+        ..Default::default()
+    };
+
+    commands.spawn((
+        TextBundle::from_sections([
+            TextSection::new("FPS: ", text_style.clone()),
+            TextSection::from_style(text_style),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            left: Val::Px(5.0),
+            ..Default::default()
+        }),
+        FpsText,
+    ));
 }
 
 fn camera_movement(
@@ -85,4 +110,13 @@ fn camera_rotation(
 
     camera_transform.rotation =
         Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
+}
+
+fn fps_display(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
+    let mut text = query.single_mut();
+    if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+        if let Some(fps) = fps.smoothed() {
+            text.sections[1].value = format!("{fps:.0}");
+        }
+    }
 }
