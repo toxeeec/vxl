@@ -3,6 +3,7 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     input::mouse::MouseMotion,
     prelude::*,
+    render::{mesh::Indices, render_resource::PrimitiveTopology},
     window::CursorGrabMode,
 };
 
@@ -31,15 +32,6 @@ fn setup(
         transform: Transform::from_xyz(5.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..Default::default()
     });
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(StandardMaterial {
-            base_color: Color::RED,
-            unlit: true,
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
 
     let mut window = windows.single_mut();
     window.cursor.visible = false;
@@ -63,6 +55,17 @@ fn setup(
         }),
         FpsText,
     ));
+
+    let cube_mesh_handle: Handle<Mesh> = meshes.add(create_cube_mesh());
+    commands.spawn(PbrBundle {
+        mesh: cube_mesh_handle,
+        material: materials.add(StandardMaterial {
+            base_color: Color::RED,
+            unlit: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
 }
 
 fn camera_movement(
@@ -119,4 +122,56 @@ fn fps_display(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, W
             text.sections[1].value = format!("{fps:.0}");
         }
     }
+}
+
+fn create_cube_mesh() -> Mesh {
+    let mut cube_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+
+    #[rustfmt::skip]
+    cube_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        vec![
+            [ 0.5,  0.5, -0.5], // north(-z)
+            [-0.5,  0.5, -0.5],
+            [-0.5, -0.5, -0.5],
+            [ 0.5, -0.5, -0.5],
+            
+            [ 0.5,  0.5,  0.5], // east(+x)
+            [ 0.5,  0.5, -0.5],
+            [ 0.5, -0.5, -0.5],
+            [ 0.5, -0.5,  0.5],
+
+            [-0.5,  0.5,  0.5], // south(+z)
+            [ 0.5,  0.5,  0.5],
+            [ 0.5, -0.5,  0.5],
+            [-0.5, -0.5,  0.5],
+            
+            [-0.5,  0.5, -0.5], // west(-x)
+            [-0.5,  0.5,  0.5],
+            [-0.5, -0.5,  0.5],
+            [-0.5, -0.5, -0.5],
+            
+            [-0.5,  0.5, -0.5], // up(+y)
+            [ 0.5,  0.5, -0.5],
+            [ 0.5,  0.5,  0.5],
+            [-0.5,  0.5,  0.5],
+            
+            [-0.5, -0.5,  0.5], // down(-y)
+            [ 0.5, -0.5,  0.5],
+            [ 0.5, -0.5, -0.5],
+            [-0.5, -0.5, -0.5],
+        ],
+    );
+
+    #[rustfmt::skip]
+    cube_mesh.set_indices(Some(Indices::U32(vec![
+         0,  2,  1,      0,  3,  2,
+         4,  6,  5,      4,  7,  6,
+         8, 10,  9,      8, 11, 10,
+        12, 14, 13,     12, 15, 14,
+        16, 18, 17,     16, 19, 18,
+        20, 22, 21,     20, 23, 22,
+    ])));
+
+    cube_mesh
 }
