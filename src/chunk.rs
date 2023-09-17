@@ -66,25 +66,31 @@ impl Chunk {
         };
         commands.spawn((pbr, Chunk)).with_children(|chunk| {
             for i in 0..CHUNK_VOLUME {
-                chunk.spawn(BlockBundle::new(Vec3 {
-                    x: (i % CHUNK_WIDTH) as f32,
-                    y: (i / CHUNK_AREA) as f32,
-                    z: ((i / CHUNK_WIDTH) % CHUNK_WIDTH) as f32,
-                }));
+                chunk.spawn(BlockBundle::new(
+                    Vec3 {
+                        x: (i % CHUNK_WIDTH) as f32,
+                        y: (i / CHUNK_AREA) as f32,
+                        z: ((i / CHUNK_WIDTH) % CHUNK_WIDTH) as f32,
+                    },
+                    i < CHUNK_AREA * 4,
+                ));
             }
         });
     }
 
     pub(crate) fn mesh(
         mut q_chunk: Query<(&mut Handle<Mesh>, &Children), (With<Chunk>, Added<Handle<Mesh>>)>,
-        q_block: Query<&Transform>,
+        q_block: Query<(&Transform, &Visibility)>,
         mut meshes: ResMut<Assets<Mesh>>,
     ) {
         for (mut mesh_handle, blocks) in q_chunk.iter_mut() {
             let mut positions = Vec::with_capacity(CHUNK_VOLUME);
             let mut indices = Vec::with_capacity(CHUNK_VOLUME * FACE_VERTICES.len() * 6);
             for &block in blocks.iter() {
-                if let Ok(transform) = q_block.get(block) {
+                if let Ok((transform, visibility)) = q_block.get(block) {
+                    if visibility == Visibility::Hidden {
+                        continue;
+                    }
                     for vertices in FACE_VERTICES {
                         for index in FACE_INDICES {
                             indices.push(positions.len() as u32 + index);
