@@ -2,6 +2,7 @@
 
 mod block;
 mod chunk;
+mod plugins;
 
 use bevy::{
     core_pipeline::tonemapping::Tonemapping,
@@ -10,19 +11,16 @@ use bevy::{
     prelude::*,
     window::CursorGrabMode,
 };
-use chunk::Chunk;
+use plugins::ChunkPlugin;
 
 const PLAYER_SPEED: f32 = 10.0;
 const SENSITIVITY: f32 = 0.1;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, FrameTimeDiagnosticsPlugin))
-        .add_systems(Startup, (setup, Chunk::spawn))
-        .add_systems(
-            Update,
-            (camera_movement, camera_rotation, fps_display, Chunk::mesh),
-        )
+        .add_plugins((DefaultPlugins, FrameTimeDiagnosticsPlugin, ChunkPlugin))
+        .add_systems(Startup, setup)
+        .add_systems(Update, (camera_movement, camera_rotation, fps_display))
         .run();
 }
 
@@ -32,7 +30,7 @@ struct FpsText;
 fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
     commands.spawn(Camera3dBundle {
         tonemapping: Tonemapping::None,
-        transform: Transform::from_xyz(-8.0, 5.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(0.0, 8.0, 0.0).looking_at(Vec3::splat(6.0), Vec3::Y),
         ..Default::default()
     });
 
@@ -81,10 +79,10 @@ fn camera_movement(
         direction += camera_transform.right();
     }
     if keyboard_input.pressed(KeyCode::Space) {
-        direction += camera_transform.up();
+        direction += Vec3::Y;
     }
     if keyboard_input.pressed(KeyCode::ShiftLeft) {
-        direction += camera_transform.down();
+        direction += Vec3::NEG_Y;
     }
 
     let movement = direction.normalize_or_zero() * PLAYER_SPEED * time.delta_seconds();

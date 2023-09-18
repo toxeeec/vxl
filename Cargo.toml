@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.11.2"
+strum = { version = "0.25.0", features = ["derive"] }
 
 [profile.dev]
 opt-level = 1

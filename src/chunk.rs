@@ -1,110 +1,134 @@
-use crate::block::BlockBundle;
-use bevy::{
-    prelude::*,
-    render::{mesh::Indices, render_resource::PrimitiveTopology},
-};
+use bevy::prelude::*;
+use strum::{EnumIter, IntoEnumIterator};
 
-const CHUNK_WIDTH: usize = 16;
-const CHUNK_HEIGHT: usize = 256;
-const CHUNK_AREA: usize = CHUNK_WIDTH * CHUNK_WIDTH;
-const CHUNK_VOLUME: usize = CHUNK_AREA * CHUNK_HEIGHT;
+pub(crate) const CHUNK_WIDTH: usize = 16;
+pub(crate) const CHUNK_HEIGHT: usize = 256;
+pub(crate) const CHUNK_AREA: usize = CHUNK_WIDTH * CHUNK_WIDTH;
+pub(crate) const CHUNK_VOLUME: usize = CHUNK_AREA * CHUNK_HEIGHT;
 
 #[rustfmt::skip]
-const FACE_VERTICES: [[Vec3; 4]; 6] = [
+const FACES_VERTICES: [[Vec3; 4]; 6] = [
     [
-        Vec3 {x:  0.5, y:  0.5, z: -0.5}, // north(-z)
-        Vec3 {x: -0.5, y:  0.5, z: -0.5},
-        Vec3 {x: -0.5, y: -0.5, z: -0.5},
-        Vec3 {x:  0.5, y: -0.5, z: -0.5}
+        Vec3 {x: 1.0, y: 1.0, z: 0.0}, // north(-z)
+        Vec3 {x: 0.0, y: 1.0, z: 0.0},
+        Vec3 {x: 0.0, y: 0.0, z: 0.0},
+        Vec3 {x: 1.0, y: 0.0, z: 0.0}
     ],
     [
-        Vec3 {x:  0.5, y:  0.5, z:  0.5}, // east(+x)
-        Vec3 {x:  0.5, y:  0.5, z: -0.5},
-        Vec3 {x:  0.5, y: -0.5, z: -0.5},
-        Vec3 {x:  0.5, y: -0.5, z:  0.5}
+        Vec3 {x: 1.0, y: 1.0, z: 1.0}, // east(+x)
+        Vec3 {x: 1.0, y: 1.0, z: 0.0},
+        Vec3 {x: 1.0, y: 0.0, z: 0.0},
+        Vec3 {x: 1.0, y: 0.0, z: 1.0}
     ],
     [
-        Vec3 {x: -0.5, y:  0.5, z:  0.5}, // south(+z)
-        Vec3 {x:  0.5, y:  0.5, z:  0.5},
-        Vec3 {x:  0.5, y: -0.5, z:  0.5},
-        Vec3 {x: -0.5, y: -0.5, z:  0.5}
+        Vec3 {x: 0.0, y: 1.0, z: 1.0}, // south(+z)
+        Vec3 {x: 1.0, y: 1.0, z: 1.0},
+        Vec3 {x: 1.0, y: 0.0, z: 1.0},
+        Vec3 {x: 0.0, y: 0.0, z: 1.0}
     ],
     [
-        Vec3 {x: -0.5, y:  0.5, z: -0.5}, // west(-x)
-        Vec3 {x: -0.5, y:  0.5, z:  0.5},
-        Vec3 {x: -0.5, y: -0.5, z:  0.5},
-        Vec3 {x: -0.5, y: -0.5, z: -0.5}
+        Vec3 {x: 0.0, y: 1.0, z: 0.0}, // west(-x)
+        Vec3 {x: 0.0, y: 1.0, z: 1.0},
+        Vec3 {x: 0.0, y: 0.0, z: 1.0},
+        Vec3 {x: 0.0, y: 0.0, z: 0.0}
     ],
     [
-        Vec3 {x: -0.5, y:  0.5, z: -0.5}, // up(+y)
-        Vec3 {x:  0.5, y:  0.5, z: -0.5},
-        Vec3 {x:  0.5, y:  0.5, z:  0.5},
-        Vec3 {x: -0.5, y:  0.5, z:  0.5}
+        Vec3 {x: 0.0, y: 1.0, z: 0.0}, // up(+y)
+        Vec3 {x: 1.0, y: 1.0, z: 0.0},
+        Vec3 {x: 1.0, y: 1.0, z: 1.0},
+        Vec3 {x: 0.0, y: 1.0, z: 1.0}
     ],
     [
-        Vec3 {x: -0.5, y: -0.5, z:  0.5}, // down(-y)
-        Vec3 {x:  0.5, y: -0.5, z:  0.5},
-        Vec3 {x:  0.5, y: -0.5, z: -0.5},
-        Vec3 {x: -0.5, y: -0.5, z: -0.5}
+        Vec3 {x: 0.0, y: 0.0, z: 1.0}, // down(-y)
+        Vec3 {x: 1.0, y: 0.0, z: 1.0},
+        Vec3 {x: 1.0, y: 0.0, z: 0.0},
+        Vec3 {x: 0.0, y: 0.0, z: 0.0}
     ]
 ];
 
 const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 
+pub(crate) const VERTICES_CAPACITY: usize =
+    CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACES_VERTICES[0].len();
+pub(crate) const INDICES_CAPACITY: usize =
+    CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACE_INDICES.len();
+
 #[derive(Component)]
 pub(crate) struct Chunk;
 
 impl Chunk {
-    pub(crate) fn spawn(mut materials: ResMut<Assets<StandardMaterial>>, mut commands: Commands) {
-        let pbr = PbrBundle {
-            material: materials.add(StandardMaterial {
-                base_color: Color::RED,
-                unlit: true,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        commands.spawn((pbr, Chunk)).with_children(|chunk| {
-            for i in 0..CHUNK_VOLUME {
-                chunk.spawn(BlockBundle::new(
-                    Vec3 {
-                        x: (i % CHUNK_WIDTH) as f32,
-                        y: (i / CHUNK_AREA) as f32,
-                        z: ((i / CHUNK_WIDTH) % CHUNK_WIDTH) as f32,
-                    },
-                    i < CHUNK_AREA * 4,
-                ));
-            }
-        });
-    }
-
     pub(crate) fn mesh(
-        mut q_chunk: Query<(&mut Handle<Mesh>, &Children), (With<Chunk>, Added<Handle<Mesh>>)>,
-        q_block: Query<(&Transform, &Visibility)>,
-        mut meshes: ResMut<Assets<Mesh>>,
+        blocks: &Children,
+        q_block: &Query<(&Transform, &Visibility)>,
+        positions: &mut Vec<Vec3>,
+        indices: &mut Vec<u32>,
     ) {
-        for (mut mesh_handle, blocks) in q_chunk.iter_mut() {
-            let mut positions = Vec::with_capacity(CHUNK_VOLUME);
-            let mut indices = Vec::with_capacity(CHUNK_VOLUME * FACE_VERTICES.len() * 6);
-            for &block in blocks.iter() {
-                if let Ok((transform, visibility)) = q_block.get(block) {
-                    if visibility == Visibility::Hidden {
+        for &block in blocks.iter() {
+            if let Ok((&Transform { translation, .. }, visibility)) = q_block.get(block) {
+                if visibility == Visibility::Hidden {
+                    continue;
+                }
+                for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
+                    if block_visible(translation.as_ivec3() + IVec3::from(dir), blocks, q_block) {
                         continue;
                     }
-                    for vertices in FACE_VERTICES {
-                        for index in FACE_INDICES {
-                            indices.push(positions.len() as u32 + index);
-                        }
-                        for vertex in vertices {
-                            positions.push(vertex + transform.translation);
-                        }
+                    for index in FACE_INDICES {
+                        indices.push(positions.len() as u32 + index);
+                    }
+                    for vertex in vertices {
+                        positions.push(vertex + translation);
                     }
                 }
             }
-            let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-            mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-            mesh.set_indices(Some(Indices::U32(indices)));
-            *mesh_handle = meshes.add(mesh);
+        }
+    }
+
+    fn block_in_bounds(pos: IVec3) -> bool {
+        pos.x >= 0
+            && pos.x < CHUNK_WIDTH as i32
+            && pos.y >= 0
+            && pos.y < CHUNK_HEIGHT as i32
+            && pos.z >= 0
+            && pos.z < CHUNK_WIDTH as i32
+    }
+}
+
+fn block_visible(
+    pos: IVec3,
+    blocks: &Children,
+    q_block: &Query<(&Transform, &Visibility)>,
+) -> bool {
+    if !Chunk::block_in_bounds(pos) {
+        return false;
+    }
+    let index = pos.y as usize * CHUNK_AREA + pos.z as usize * CHUNK_WIDTH + pos.x as usize;
+    let block = blocks[index];
+    match q_block.get(block) {
+        Ok((_, visibility)) => visibility == Visibility::Visible,
+        Err(_) => false,
+    }
+}
+
+#[derive(EnumIter, PartialEq, Clone, Copy)]
+enum Direction {
+    North,
+    East,
+    South,
+    West,
+    Up,
+    Down,
+}
+
+#[rustfmt::skip]
+impl From<Direction> for IVec3 {
+    fn from(dir: Direction) -> Self {
+        match dir {
+            Direction::North => Self {x:  0, y:  0, z: -1},
+            Direction::East  => Self {x:  1, y:  0, z:  0},
+            Direction::South => Self {x:  0, y:  0, z:  1},
+            Direction::West  => Self {x: -1, y:  0, z:  0},
+            Direction::Up    => Self {x:  0, y:  1, z:  0},
+            Direction::Down  => Self {x:  0, y: -1, z:  0},
         }
     }
 }
