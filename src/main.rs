@@ -2,7 +2,6 @@
 
 mod block;
 mod chunk;
-mod plugins;
 
 use bevy::{
     core_pipeline::tonemapping::Tonemapping,
@@ -11,7 +10,7 @@ use bevy::{
     prelude::*,
     window::CursorGrabMode,
 };
-use plugins::ChunkPlugin;
+use chunk::ChunkPlugin;
 
 const PLAYER_SPEED: f32 = 10.0;
 const SENSITIVITY: f32 = 0.1;
