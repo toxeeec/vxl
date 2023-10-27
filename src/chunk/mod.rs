@@ -13,6 +13,7 @@ pub(crate) const CHUNK_HEIGHT: usize = 256;
 pub(crate) const CHUNK_AREA: usize = CHUNK_WIDTH * CHUNK_WIDTH;
 pub(crate) const CHUNK_VOLUME: usize = CHUNK_AREA * CHUNK_HEIGHT;
 
+#[derive(Debug)]
 pub(crate) struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {

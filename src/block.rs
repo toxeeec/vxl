@@ -1,7 +1,7 @@
 use crate::chunk::{CHUNK_AREA, CHUNK_HEIGHT, CHUNK_WIDTH};
 use bevy::prelude::*;
 
-#[derive(Bundle)]
+#[derive(Bundle, Debug)]
 pub(crate) struct BlockBundle {
     transform: Transform,
     visibility: Visibility,

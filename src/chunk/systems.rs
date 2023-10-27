@@ -1,4 +1,4 @@
-use super::{components::Chunk, CHUNK_AREA, CHUNK_VOLUME, CHUNK_WIDTH, direction::Direction};
+use super::{components::Chunk, direction::Direction, CHUNK_AREA, CHUNK_VOLUME, CHUNK_WIDTH};
 use crate::block::{block_visible, BlockBundle};
 use bevy::{
     prelude::*,

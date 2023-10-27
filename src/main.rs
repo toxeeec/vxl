@@ -2,6 +2,7 @@
 
 mod block;
 mod chunk;
+mod texture;
 
 use bevy::{
     core_pipeline::tonemapping::Tonemapping,
@@ -11,19 +12,25 @@ use bevy::{
     window::CursorGrabMode,
 };
 use chunk::ChunkPlugin;
+use texture::TexturePlugin;
 
 const PLAYER_SPEED: f32 = 10.0;
 const SENSITIVITY: f32 = 0.1;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, FrameTimeDiagnosticsPlugin, ChunkPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            FrameTimeDiagnosticsPlugin,
+            ChunkPlugin,
+            TexturePlugin,
+        ))
         .add_systems(Startup, setup)
         .add_systems(Update, (camera_movement, camera_rotation, fps_display))
         .run();
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct FpsText;
 
 fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
