@@ -1,10 +1,14 @@
 use crate::chunk::{CHUNK_AREA, CHUNK_HEIGHT, CHUNK_WIDTH};
 use bevy::prelude::*;
 
+#[derive(Component, Debug)]
+pub(crate) struct Block;
+
 #[derive(Bundle, Debug)]
 pub(crate) struct BlockBundle {
     transform: Transform,
     visibility: Visibility,
+    marker: Block,
 }
 
 impl BlockBundle {
@@ -16,6 +20,7 @@ impl BlockBundle {
             } else {
                 Visibility::Hidden
             },
+            marker: Block,
         }
     }
 }
@@ -23,7 +28,7 @@ impl BlockBundle {
 pub(crate) fn block_visible(
     pos: IVec3,
     blocks: &Children,
-    q_block: &Query<(&Transform, &Visibility)>,
+    q_block: &Query<(&Transform, &Visibility), With<Block>>,
 ) -> bool {
     if !block_in_bounds(pos) {
         return false;

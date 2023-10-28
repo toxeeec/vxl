@@ -1,5 +1,8 @@
-use super::{components::Chunk, direction::Direction, CHUNK_AREA, CHUNK_VOLUME, CHUNK_WIDTH};
-use crate::block::{block_visible, BlockBundle};
+use super::{
+    components::Chunk, direction::Direction, material::ChunkMaterial, CHUNK_AREA, CHUNK_VOLUME,
+    CHUNK_WIDTH,
+};
+use crate::block::{block_visible, Block, BlockBundle};
 use bevy::{
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology},
@@ -51,13 +54,9 @@ const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 const VERTICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACES_VERTICES[0].len();
 const INDICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACE_INDICES.len();
 
-pub(super) fn spawn_chunk(mut materials: ResMut<Assets<StandardMaterial>>, mut commands: Commands) {
-    let pbr = PbrBundle {
-        material: materials.add(StandardMaterial {
-            base_color: Color::RED,
-            unlit: true,
-            ..Default::default()
-        }),
+pub(super) fn spawn_chunk(mut materials: ResMut<Assets<ChunkMaterial>>, mut commands: Commands) {
+    let pbr = MaterialMeshBundle {
+        material: materials.add(ChunkMaterial { color: Color::RED }),
         ..Default::default()
     };
     commands.spawn((pbr, Chunk)).with_children(|chunk| {
@@ -76,7 +75,7 @@ pub(super) fn spawn_chunk(mut materials: ResMut<Assets<StandardMaterial>>, mut c
 
 pub(super) fn mesh_chunks(
     mut q_chunk: Query<(&mut Handle<Mesh>, &Children), (With<Chunk>, Added<Handle<Mesh>>)>,
-    q_block: Query<(&Transform, &Visibility)>,
+    q_block: Query<(&Transform, &Visibility), With<Block>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     for (mut mesh_handle, blocks) in q_chunk.iter_mut() {
@@ -93,7 +92,7 @@ pub(super) fn mesh_chunks(
 
 fn mesh_chunk(
     blocks: &Children,
-    q_block: &Query<(&Transform, &Visibility)>,
+    q_block: &Query<(&Transform, &Visibility), With<Block>>,
     positions: &mut Vec<Vec3>,
     indices: &mut Vec<u32>,
 ) {
