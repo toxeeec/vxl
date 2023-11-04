@@ -1,4 +1,4 @@
-use bevy::prelude::IVec3;
+use bevy::prelude::*;
 use strum::EnumIter;
 
 #[derive(EnumIter, PartialEq, Clone, Copy)]

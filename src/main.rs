@@ -2,6 +2,7 @@
 
 mod block;
 mod chunk;
+mod direction;
 mod texture;
 
 use bevy::{
@@ -20,13 +21,14 @@ const SENSITIVITY: f32 = 0.1;
 fn main() {
     App::new()
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(ImagePlugin::default_nearest()),
             FrameTimeDiagnosticsPlugin,
-            ChunkPlugin,
             TexturePlugin,
+            ChunkPlugin,
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, (camera_movement, camera_rotation, fps_display))
+        .insert_resource(Msaa::Off)
         .run();
 }
 
@@ -113,9 +115,9 @@ fn camera_rotation(
 
 fn fps_display(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
     let mut text = query.single_mut();
-    if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
-        if let Some(fps) = fps.smoothed() {
-            text.sections[1].value = format!("{fps:.0}");
-        }
-    }
+    let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) else {
+        return;
+    };
+    let Some(fps) = fps.smoothed() else { return };
+    text.sections[1].value = format!("{fps:.0}");
 }

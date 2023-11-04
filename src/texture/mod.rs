@@ -1,8 +1,10 @@
 mod resources;
 mod systems;
+pub(crate) mod uv;
+
+pub(crate) use resources::Textures;
 
 use bevy::prelude::*;
-pub(crate) use resources::Textures;
 use systems::create_textures;
 
 #[derive(Debug)]

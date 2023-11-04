@@ -6,9 +6,10 @@ use bevy::{
 
 #[derive(AsBindGroup, TypeUuid, TypePath, Clone, Debug)]
 #[uuid = "0993d972-901b-485c-b9f1-00e8d1549724"]
-pub(crate) struct ChunkMaterial {
-    #[uniform(0)]
-    pub(crate) color: Color,
+pub(super) struct ChunkMaterial {
+    #[texture(0, dimension = "2d")]
+    #[sampler(1)]
+    pub(super) texture: Handle<Image>,
 }
 
 impl Material for ChunkMaterial {
