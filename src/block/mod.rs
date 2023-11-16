@@ -4,27 +4,28 @@ mod components;
 pub(crate) use bundles::BlockBundle;
 pub(crate) use components::Block;
 
-use crate::chunk::{CHUNK_AREA, CHUNK_HEIGHT, CHUNK_WIDTH};
+use crate::settings::{CHUNK_AREA, CHUNK_HEIGHT, CHUNK_WIDTH, RENDER_DISTANCE};
 use bevy::prelude::*;
 
-pub(super) fn block_visible(
-    pos: IVec3,
-    blocks: &Children,
-    q_block: &Query<(&Block, &Transform, &Visibility)>,
-) -> bool {
-    if !block_in_bounds(pos) {
-        return false;
-    }
-    let index = pos.y as usize * CHUNK_AREA + pos.z as usize * CHUNK_WIDTH + pos.x as usize;
-    let (_, _, visibility) = q_block.get(blocks[index]).unwrap();
-    visibility == Visibility::Visible
-}
-
-fn block_in_bounds(pos: IVec3) -> bool {
-    pos.x >= 0
-        && pos.x < CHUNK_WIDTH as i32
+pub(super) fn block_in_bounds(pos: IVec3) -> bool {
+    pos.x >= -((RENDER_DISTANCE * CHUNK_WIDTH) as i32)
+        && pos.x < ((RENDER_DISTANCE + 1) * CHUNK_WIDTH) as i32
         && pos.y >= 0
         && pos.y < CHUNK_HEIGHT as i32
-        && pos.z >= 0
-        && pos.z < CHUNK_WIDTH as i32
+        && pos.z >= -((RENDER_DISTANCE * CHUNK_WIDTH) as i32)
+        && pos.z < ((RENDER_DISTANCE + 1) * CHUNK_WIDTH) as i32
+}
+
+pub(crate) fn global_to_local_pos(pos: IVec3) -> IVec3 {
+    let chunk_pos = IVec3::new(
+        pos.x.div_euclid(CHUNK_WIDTH as i32),
+        0,
+        pos.z.div_euclid(CHUNK_WIDTH as i32),
+    ) * CHUNK_WIDTH as i32;
+
+    pos - chunk_pos
+}
+
+pub(crate) fn pos_to_index(pos: IVec3) -> usize {
+    (pos.x + pos.y * CHUNK_AREA as i32 + pos.z * CHUNK_WIDTH as i32) as usize
 }

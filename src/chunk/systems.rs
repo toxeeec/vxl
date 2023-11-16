@@ -1,8 +1,12 @@
-use super::{components::Chunk, materials::ChunkMaterial, CHUNK_AREA, CHUNK_VOLUME, CHUNK_WIDTH};
+use super::{
+    bundles::ChunkBundle, materials::ChunkMaterial, offset::visible_chunks_offsets,
+    resources::Chunks, Chunk, Dirty,
+};
 use crate::{
-    block::{block_visible, Block, BlockBundle},
+    block::{global_to_local_pos, pos_to_index, Block, BlockBundle},
     direction::Direction,
-    texture::{uv::atlas_uvs, Textures},
+    settings::{CHUNK_AREA, CHUNK_VOLUME, CHUNK_WIDTH, WORLD_WIDTH},
+    texture::{atlas_uvs, Textures},
 };
 use bevy::{
     prelude::*,
@@ -55,49 +59,69 @@ const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 const VERTICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACES_VERTICES[0].len();
 const INDICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACE_INDICES.len();
 
-#[derive(Debug)]
-struct ChunkMesh {
-    positions: Vec<Vec3>,
-    uvs: Vec<[f32; 2]>,
-    indices: Vec<u32>,
-}
-
-pub(super) fn spawn_chunk(mut commands: Commands) {
-    commands.spawn(Chunk).with_children(|chunk| {
-        for i in 0..CHUNK_VOLUME {
-            chunk.spawn(BlockBundle::new(
-                if i < CHUNK_AREA * 3 {
-                    Block::Dirt
-                } else {
-                    Block::Grass
-                },
-                Vec3 {
-                    x: (i % CHUNK_WIDTH) as f32,
-                    y: (i / CHUNK_AREA) as f32,
-                    z: ((i / CHUNK_WIDTH) % CHUNK_WIDTH) as f32,
-                },
-                i < CHUNK_AREA * 4,
-            ));
-        }
-    });
+pub(super) fn spawn_chunks(mut commands: Commands) {
+    let mut chunks = Vec::with_capacity(WORLD_WIDTH * WORLD_WIDTH);
+    for offset in visible_chunks_offsets() {
+        let mut chunk = commands.spawn(ChunkBundle::new(offset));
+        chunk.with_children(|parent| {
+            for i in 0..CHUNK_VOLUME {
+                parent.spawn(BlockBundle::new(
+                    match i / CHUNK_AREA {
+                        0..=2 => Block::Dirt,
+                        3 => Block::Grass,
+                        _ => Block::Air,
+                    },
+                    Vec3 {
+                        x: (i % CHUNK_WIDTH) as f32,
+                        y: (i / CHUNK_AREA) as f32,
+                        z: ((i / CHUNK_WIDTH) % CHUNK_WIDTH) as f32,
+                    },
+                ));
+            }
+        });
+        chunks.push(chunk.id());
+    }
+    commands.insert_resource(Chunks::new(chunks));
 }
 
 pub(super) fn mesh_chunks(
     mut commands: Commands,
-    q_chunk: Query<&Children, (With<Chunk>, Added<Chunk>)>,
-    q_block: Query<(&Block, &Transform, &Visibility)>,
+    q_chunk: Query<(Entity, &Children), (With<Chunk>, With<Dirty>)>,
+    q_block: Query<(&Block, &GlobalTransform, &Visibility)>,
     texture_atlases: Res<Assets<TextureAtlas>>,
     textures: Res<Textures>,
+    chunks: Res<Chunks>,
     mut materials: ResMut<Assets<ChunkMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let atlas = texture_atlases.get(&textures.blocks).unwrap();
-    for blocks in q_chunk.iter() {
-        let ChunkMesh {
-            positions,
-            uvs,
-            indices,
-        } = mesh_chunk(blocks, &q_block, atlas);
+    for (e, blocks) in q_chunk.iter() {
+        let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
+        let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
+        let mut indices = Vec::with_capacity(INDICES_CAPACITY);
+
+        for (&block, transform, visibility) in q_block.iter_many(blocks) {
+            if visibility == Visibility::Hidden {
+                continue;
+            }
+            for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
+                let translation = transform.translation();
+                let neighbor_pos = translation.as_ivec3() + IVec3::from(dir);
+                if let Some(chunk) = chunks.get_by_pos(neighbor_pos) {
+                    let (_, chunk) = q_chunk.get(chunk).unwrap();
+                    let local_pos = global_to_local_pos(neighbor_pos);
+                    let (_, _, visibility) = q_block.get(chunk[pos_to_index(local_pos)]).unwrap();
+                    if visibility == Visibility::Visible {
+                        continue;
+                    }
+                }
+                indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
+                uvs.extend(atlas_uvs(atlas, block, dir));
+                for vertex in vertices {
+                    positions.push(vertex + translation);
+                }
+            }
+        }
 
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
@@ -110,37 +134,6 @@ pub(super) fn mesh_chunks(
             mesh: meshes.add(mesh),
             ..Default::default()
         });
-    }
-}
-
-fn mesh_chunk(
-    blocks: &Children,
-    q_block: &Query<(&Block, &Transform, &Visibility)>,
-    atlas: &TextureAtlas,
-) -> ChunkMesh {
-    let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
-    let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
-    let mut indices = Vec::with_capacity(INDICES_CAPACITY);
-    for &block in blocks.iter() {
-        let (&block, &Transform { translation, .. }, visibility) = q_block.get(block).unwrap();
-        if visibility == Visibility::Hidden {
-            continue;
-        }
-        for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
-            if block_visible(translation.as_ivec3() + IVec3::from(dir), blocks, q_block) {
-                continue;
-            }
-            indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
-            uvs.extend(atlas_uvs(atlas, block, dir));
-            for vertex in vertices {
-                positions.push(vertex + translation);
-            }
-        }
-    }
-
-    ChunkMesh {
-        positions,
-        uvs,
-        indices,
+        commands.entity(e).remove::<Dirty>();
     }
 }

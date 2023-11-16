@@ -4,16 +4,16 @@ use bevy::prelude::*;
 #[derive(Bundle, Debug)]
 pub(crate) struct BlockBundle {
     block: Block,
-    transform: Transform,
     visibility: Visibility,
+    transform: TransformBundle,
 }
 
 impl BlockBundle {
-    pub(crate) fn new(block: Block, pos: Vec3, is_visible: bool) -> Self {
+    pub(crate) fn new(block: Block, pos: Vec3) -> Self {
         Self {
             block,
-            transform: Transform::from_translation(pos),
-            visibility: if is_visible {
+            transform: TransformBundle::from_transform(Transform::from_translation(pos)),
+            visibility: if block.is_visible() {
                 Visibility::Visible
             } else {
                 Visibility::Hidden

@@ -1,4 +1,4 @@
-use super::resources::Textures;
+use super::Textures;
 use bevy::prelude::*;
 
 pub(super) fn create_textures(
