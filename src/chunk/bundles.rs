@@ -1,17 +1,17 @@
-use super::{offset::transform_from_offset, Chunk, Dirty};
+use super::{Chunk, Dirty};
 use bevy::prelude::*;
 
 #[derive(Bundle, Debug)]
 pub(super) struct ChunkBundle {
-    transform: TransformBundle,
+    transform: Transform,
     chunk: Chunk,
     dirty: Dirty,
 }
 
 impl ChunkBundle {
-    pub(super) fn new(offset: IVec2) -> Self {
+    pub(super) fn new(transform: Transform) -> Self {
         ChunkBundle {
-            transform: TransformBundle::from_transform(transform_from_offset(offset)),
+            transform,
             chunk: Chunk,
             dirty: Dirty,
         }

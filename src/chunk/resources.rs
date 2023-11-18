@@ -14,10 +14,7 @@ impl Chunks {
         if !block_in_bounds(pos) {
             return None;
         };
-        let chunk_offset = IVec2::new(
-            pos.x.div_euclid(CHUNK_WIDTH as i32),
-            pos.z.div_euclid(CHUNK_WIDTH as i32),
-        );
+        let chunk_offset = IVec2::new(pos.x.div_euclid(CHUNK_WIDTH), pos.z.div_euclid(CHUNK_WIDTH));
         let index = index_from_offset(chunk_offset);
         self.0.get(index).copied()
     }
