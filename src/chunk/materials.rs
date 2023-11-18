@@ -4,7 +4,7 @@ use bevy::{
     render::render_resource::{AsBindGroup, ShaderRef},
 };
 
-#[derive(AsBindGroup, TypeUuid, TypePath, Clone, Debug)]
+#[derive(Asset, AsBindGroup, TypeUuid, TypePath, Clone, Debug)]
 #[uuid = "0993d972-901b-485c-b9f1-00e8d1549724"]
 pub(crate) struct ChunkMaterial {
     #[texture(0, dimension = "2d")]

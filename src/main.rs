@@ -108,7 +108,7 @@ fn camera_rotation(
     let mut camera_transform = query.single_mut();
     let (mut yaw, mut pitch, _) = camera_transform.rotation.to_euler(EulerRot::YXZ);
 
-    let delta = motion_evr.iter().fold(Vec2::ZERO, |acc, ev| acc + ev.delta);
+    let delta = motion_evr.read().fold(Vec2::ZERO, |acc, ev| acc + ev.delta);
     pitch -= delta.y.to_radians() * SENSITIVITY;
     yaw -= delta.x.to_radians() * SENSITIVITY;
     pitch = pitch.clamp(-89.9f32.to_radians(), 89.9f32.to_radians());
