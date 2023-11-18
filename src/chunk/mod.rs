@@ -19,7 +19,7 @@ struct Chunk;
 struct Dirty;
 
 #[derive(Debug)]
-pub(crate) struct ChunkPlugin;
+pub(super) struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {

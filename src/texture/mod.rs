@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use systems::create_textures;
 
 #[derive(Debug)]
-pub(crate) struct TexturePlugin;
+pub(super) struct TexturePlugin;
 
 impl Plugin for TexturePlugin {
     fn build(&self, app: &mut App) {

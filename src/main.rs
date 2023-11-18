@@ -3,18 +3,17 @@
 mod block;
 mod chunk;
 mod direction;
+mod player;
 mod settings;
 mod texture;
 
 use bevy::{
-    core_pipeline::tonemapping::Tonemapping,
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-    input::mouse::MouseMotion,
     prelude::*,
     window::CursorGrabMode,
 };
 use chunk::ChunkPlugin;
-use settings::{PLAYER_SPEED, SENSITIVITY};
+use player::PlayerPlugin;
 use texture::TexturePlugin;
 
 fn main() {
@@ -24,12 +23,10 @@ fn main() {
             FrameTimeDiagnosticsPlugin,
             TexturePlugin,
             ChunkPlugin,
+            PlayerPlugin,
         ))
-        .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (camera_movement, camera_rotation, display_debug_text),
-        )
+        .add_systems(Startup, (setup, spawn_debug_text))
+        .add_systems(Update, display_debug_text)
         .insert_resource(Msaa::Off)
         .run();
 }
@@ -37,17 +34,13 @@ fn main() {
 #[derive(Component, Debug)]
 struct DebugText;
 
-fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
-    commands.spawn(Camera3dBundle {
-        tonemapping: Tonemapping::None,
-        transform: Transform::from_xyz(0.0, 8.0, 0.0).looking_at(Vec3::splat(6.0), Vec3::Y),
-        ..Default::default()
-    });
-
+fn setup(mut windows: Query<&mut Window>) {
     let mut window = windows.single_mut();
     window.cursor.visible = false;
     window.cursor.grab_mode = CursorGrabMode::Locked;
+}
 
+fn spawn_debug_text(mut commands: Commands) {
     let text_style = TextStyle {
         font_size: 24.0,
         ..Default::default()
@@ -68,53 +61,6 @@ fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
         }),
         DebugText,
     ));
-}
-
-fn camera_movement(
-    mut query: Query<&mut Transform, With<Camera>>,
-    keyboard_input: Res<Input<KeyCode>>,
-    time: Res<Time>,
-) {
-    let mut camera_transform = query.single_mut();
-    let mut direction = Vec3::ZERO;
-
-    if keyboard_input.pressed(KeyCode::W) {
-        direction += camera_transform.forward();
-    }
-    if keyboard_input.pressed(KeyCode::S) {
-        direction += camera_transform.back();
-    }
-    if keyboard_input.pressed(KeyCode::A) {
-        direction += camera_transform.left();
-    }
-    if keyboard_input.pressed(KeyCode::D) {
-        direction += camera_transform.right();
-    }
-    if keyboard_input.pressed(KeyCode::Space) {
-        direction += Vec3::Y;
-    }
-    if keyboard_input.pressed(KeyCode::ShiftLeft) {
-        direction += Vec3::NEG_Y;
-    }
-
-    let movement = direction.normalize_or_zero() * PLAYER_SPEED * time.delta_seconds();
-    camera_transform.translation += movement;
-}
-
-fn camera_rotation(
-    mut query: Query<&mut Transform, With<Camera>>,
-    mut motion_evr: EventReader<MouseMotion>,
-) {
-    let mut camera_transform = query.single_mut();
-    let (mut yaw, mut pitch, _) = camera_transform.rotation.to_euler(EulerRot::YXZ);
-
-    let delta = motion_evr.read().fold(Vec2::ZERO, |acc, ev| acc + ev.delta);
-    pitch -= delta.y.to_radians() * SENSITIVITY;
-    yaw -= delta.x.to_radians() * SENSITIVITY;
-    pitch = pitch.clamp(-89.9f32.to_radians(), 89.9f32.to_radians());
-
-    camera_transform.rotation =
-        Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
 }
 
 fn display_debug_text(
