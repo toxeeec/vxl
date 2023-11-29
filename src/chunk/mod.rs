@@ -1,16 +1,15 @@
-mod bundles;
-mod materials;
-mod offset;
 mod resources;
 mod systems;
 
-pub(crate) use materials::ChunkMaterial;
+pub(crate) use resources::CenterOffset;
 
+use crate::{offset::Offset, player::player_movement, settings::RENDER_DISTANCE};
 use bevy::{
     app::{App, Plugin},
     prelude::*,
 };
-use systems::{mesh_chunks, spawn_chunks};
+use resources::Chunks;
+use systems::{mesh_chunks, reorder_chunks, spawn_chunks, unload_distant_chunks, update_offsets};
 
 #[derive(Component, Debug)]
 struct Chunk;
@@ -23,8 +22,22 @@ pub(super) struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(MaterialPlugin::<ChunkMaterial>::default())
-            .add_systems(Startup, spawn_chunks)
-            .add_systems(Update, mesh_chunks);
+        app.init_resource::<Chunks>()
+            .add_systems(PreUpdate, unload_distant_chunks)
+            .add_systems(
+                Update,
+                (
+                    update_offsets,
+                    reorder_chunks,
+                    spawn_chunks.after(reorder_chunks),
+                    mesh_chunks.after(spawn_chunks),
+                )
+                    .before(player_movement),
+            );
     }
+}
+
+pub(super) fn chunk_in_bounds(transform: Transform, center_offset: Offset) -> bool {
+    let dist = (Offset::from(transform).0 - center_offset.0).abs();
+    dist.x <= RENDER_DISTANCE && dist.y <= RENDER_DISTANCE
 }

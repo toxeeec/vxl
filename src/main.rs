@@ -3,6 +3,7 @@
 mod block;
 mod chunk;
 mod direction;
+mod offset;
 mod player;
 mod settings;
 mod texture;
@@ -22,8 +23,8 @@ fn main() {
             DefaultPlugins.set(ImagePlugin::default_nearest()),
             FrameTimeDiagnosticsPlugin,
             TexturePlugin,
-            ChunkPlugin,
             PlayerPlugin,
+            ChunkPlugin,
         ))
         .add_systems(Startup, (setup, spawn_debug_text))
         .add_systems(Update, display_debug_text)
@@ -34,8 +35,8 @@ fn main() {
 #[derive(Component, Debug)]
 struct DebugText;
 
-fn setup(mut windows: Query<&mut Window>) {
-    let mut window = windows.single_mut();
+fn setup(mut query: Query<&mut Window>) {
+    let mut window = query.single_mut();
     window.cursor.visible = false;
     window.cursor.grab_mode = CursorGrabMode::Locked;
 }
@@ -64,9 +65,9 @@ fn spawn_debug_text(mut commands: Commands) {
 }
 
 fn display_debug_text(
-    diagnostics: Res<DiagnosticsStore>,
-    q_pos: Query<&Transform, With<Camera>>,
     mut q_text: Query<&mut Text, With<DebugText>>,
+    q_pos: Query<&Transform, With<Camera>>,
+    diagnostics: Res<DiagnosticsStore>,
 ) {
     let mut text = q_text.single_mut();
     if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {

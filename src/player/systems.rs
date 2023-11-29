@@ -1,17 +1,21 @@
 use super::bundles::PlayerBundle;
 use super::Player;
+use crate::chunk::CenterOffset;
+use crate::offset::Offset;
 use crate::settings::{PLAYER_SPEED, SENSITIVITY};
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 
 pub(super) fn spawn_player(mut commands: Commands) {
-    commands.spawn(PlayerBundle::new(Vec3::new(0.0, 8.0, 0.0)));
+    let transform = Transform::from_xyz(0.0, 8.0, 0.0).looking_at(Vec3::splat(8.0), Vec3::Y);
+    commands.spawn(PlayerBundle::new(transform));
 }
 
-pub(super) fn player_movement(
+pub(crate) fn player_movement(
     mut query: Query<&mut Transform, With<Player>>,
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
+    mut center_offset: ResMut<CenterOffset>,
 ) {
     let mut transform = query.single_mut();
     let mut direction = Vec3::ZERO;
@@ -35,8 +39,15 @@ pub(super) fn player_movement(
         direction += Vec3::NEG_Y;
     }
 
+    let offset = Offset::from(*transform);
+
     let movement = direction.normalize_or_zero() * PLAYER_SPEED * time.delta_seconds();
     transform.translation += movement;
+    let new_offset = Offset::from(*transform);
+
+    if new_offset != offset {
+        center_offset.update(new_offset);
+    }
 }
 
 pub(super) fn player_rotation(
@@ -48,6 +59,9 @@ pub(super) fn player_rotation(
     let (mut yaw, mut pitch, _) = rotation.to_euler(EulerRot::YXZ);
 
     let delta = motion_evr.read().fold(Vec2::ZERO, |acc, ev| acc + ev.delta);
+    if delta == Vec2::ZERO {
+        return;
+    }
     pitch -= delta.y.to_radians() * SENSITIVITY;
     yaw -= delta.x.to_radians() * SENSITIVITY;
     pitch = pitch.clamp(-89.9f32.to_radians(), 89.9f32.to_radians());

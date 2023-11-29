@@ -8,11 +8,11 @@ pub(crate) struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    pub(crate) fn new(pos: Vec3) -> Self {
+    pub(crate) fn new(transform: Transform) -> Self {
         Self {
             camera: Camera3dBundle {
                 tonemapping: Tonemapping::None,
-                transform: Transform::from_translation(pos).looking_at(Vec3::splat(8.0), Vec3::Y),
+                transform,
                 ..Default::default()
             },
             player: Player,
