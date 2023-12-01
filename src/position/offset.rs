@@ -1,3 +1,4 @@
+use super::GlobalPosition;
 use crate::settings::{CHUNK_WIDTH, RENDER_DISTANCE, WORLD_WIDTH};
 use bevy::{prelude::*, utils::hashbrown::Equivalent};
 
@@ -9,7 +10,7 @@ impl Offset {
         Offset(IVec2::new(x, y))
     }
 
-    pub(crate) fn as_index(&self, center_offset: Offset) -> usize {
+    pub(crate) fn to_index(self, center_offset: Offset) -> usize {
         (((self.0.y - center_offset.0.y + RENDER_DISTANCE) * WORLD_WIDTH)
             + (self.0.x - center_offset.0.x + RENDER_DISTANCE)) as usize
     }
@@ -21,6 +22,12 @@ impl From<IVec3> for Offset {
             value.x.div_euclid(CHUNK_WIDTH),
             value.z.div_euclid(CHUNK_WIDTH),
         )
+    }
+}
+
+impl From<GlobalPosition> for Offset {
+    fn from(value: GlobalPosition) -> Self {
+        value.0.into()
     }
 }
 

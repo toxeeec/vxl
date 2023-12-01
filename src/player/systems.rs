@@ -1,7 +1,7 @@
 use super::bundles::PlayerBundle;
 use super::Player;
 use crate::chunk::CenterOffset;
-use crate::offset::Offset;
+use crate::position::Offset;
 use crate::settings::{PLAYER_SPEED, SENSITIVITY};
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;

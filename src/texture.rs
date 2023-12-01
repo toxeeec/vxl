@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::block::BlockId;
 use crate::direction::Direction;
 use bevy::{
     prelude::*,
@@ -53,8 +53,8 @@ impl Material for ChunkMaterial {
     }
 }
 
-pub(crate) fn atlas_uvs(atlas: &TextureAtlas, block: Block, dir: Direction) -> [[f32; 2]; 4] {
-    let area = atlas.textures[block.texture_id(dir)];
+pub(crate) fn atlas_uvs(atlas: &TextureAtlas, block_id: BlockId, dir: Direction) -> [[f32; 2]; 4] {
+    let area = atlas.textures[block_id.texture_id(dir)];
     let Vec2 { x: min_u, y: min_v } = (area.min + area.size() / 2.0 / atlas.size) / atlas.size;
     let Vec2 { x: max_u, y: max_v } = (area.max - area.size() / 2.0 / atlas.size) / atlas.size;
 

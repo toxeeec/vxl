@@ -1,10 +1,10 @@
 use std::mem;
 
 use crate::{
-    block::{generate_blocks, global_to_local_pos, Block},
+    block::{generate_blocks, BlockId},
     direction::Direction,
-    offset::Offset,
-    settings::{CHUNK_AREA, CHUNK_VOLUME, CHUNK_WIDTH, RENDER_DISTANCE, WORLD_WIDTH},
+    position::{GlobalPosition, LocalPosition, Offset},
+    settings::{CHUNK_VOLUME, RENDER_DISTANCE, WORLD_WIDTH},
     texture::ChunkTexture,
 };
 use bevy::{prelude::*, utils::HashMap};
@@ -15,18 +15,17 @@ use super::{Chunk, Dirty};
 pub(crate) struct Chunks {
     pub(crate) offsets: Vec<Offset>,
     pub(crate) entities: HashMap<Offset, Entity>,
-    pub(crate) blocks: Vec<Box<[Block]>>,
-    blocks_back: Vec<Box<[Block]>>,
+    pub(crate) blocks: Vec<Box<[BlockId]>>,
+    blocks_back: Vec<Box<[BlockId]>>,
 }
 
 impl Chunks {
-    pub(crate) fn get_block(&self, pos: IVec3, center_offset: Offset) -> Option<Block> {
-        let chunk_offset = Offset::from(pos);
-        let chunk_index = chunk_offset.as_index(center_offset);
-        let local_pos = global_to_local_pos(pos);
+    pub(crate) fn get_block(&self, pos: GlobalPosition, center_offset: Offset) -> Option<BlockId> {
+        let chunk_index = Offset::from(pos).to_index(center_offset);
+        let local_pos = LocalPosition::from(pos);
         self.blocks
             .get(chunk_index)?
-            .get((local_pos.x + local_pos.y * CHUNK_AREA + local_pos.z * CHUNK_WIDTH) as usize)
+            .get(local_pos.to_index())
             .copied()
     }
 
@@ -49,9 +48,14 @@ impl Chunks {
 
     pub(crate) fn reorder(
         &mut self,
-        mut f: impl FnMut(&mut Vec<Box<[Block]>>, &mut Vec<Box<[Block]>>),
+        chunk_offsets: impl Iterator<Item = Offset>,
+        center_offset: CenterOffset,
     ) {
-        f(&mut self.blocks, &mut self.blocks_back);
+        for offset in chunk_offsets {
+            let prev_idx = offset.to_index(center_offset.prev());
+            let curr_idx = offset.to_index(center_offset.curr());
+            mem::swap(&mut self.blocks[prev_idx], &mut self.blocks_back[curr_idx]);
+        }
         mem::swap(&mut self.blocks, &mut self.blocks_back);
     }
 }
@@ -72,11 +76,7 @@ impl FromWorld for Chunks {
 
         let blocks_front = offsets
             .iter()
-            .map(|&offset| {
-                generate_blocks(offset)
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice()
-            })
+            .map(|_| generate_blocks().collect::<Vec<_>>().into_boxed_slice())
             .collect();
 
         let entities = offsets
@@ -104,7 +104,7 @@ impl FromWorld for Chunks {
             entities,
             blocks: blocks_front,
             blocks_back: vec![
-                Box::new([Block::default(); CHUNK_VOLUME]);
+                Box::new([BlockId::default(); CHUNK_VOLUME]);
                 (WORLD_WIDTH * WORLD_WIDTH) as usize
             ],
         }

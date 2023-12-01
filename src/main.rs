@@ -3,8 +3,8 @@
 mod block;
 mod chunk;
 mod direction;
-mod offset;
 mod player;
+mod position;
 mod settings;
 mod texture;
 

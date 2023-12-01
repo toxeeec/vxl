@@ -1,5 +1,3 @@
-use std::mem;
-
 use super::{
     chunk_in_bounds,
     resources::{CenterOffset, Chunks},
@@ -8,7 +6,7 @@ use super::{
 use crate::{
     block::{generate_blocks, Transparency},
     direction::Direction,
-    offset::Offset,
+    position::{GlobalPosition, LocalPosition, Offset},
     settings::{CHUNK_VOLUME, RENDER_DISTANCE, WORLD_WIDTH},
     texture::{atlas_uvs, ChunkTexture},
 };
@@ -77,22 +75,28 @@ pub(super) fn mesh_chunks(
         let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
         let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
         let mut indices = Vec::with_capacity(INDICES_CAPACITY);
+        let offset = Offset::from(transform);
 
-        for &block in chunks.blocks[Offset::from(transform).as_index(center_offset.curr())].iter() {
-            if block.transparency == Transparency::Invisible {
+        for (i, &block_id) in chunks.blocks[offset.to_index(center_offset.curr())]
+            .iter()
+            .enumerate()
+        {
+            if block_id.transparency() == Transparency::Invisible {
                 continue;
             }
+            let local_pos = LocalPosition::from_index(i);
+            let global_pos = GlobalPosition::from_local(local_pos, Offset::from(transform));
             for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
-                let neighbor_pos = block.pos + IVec3::from(dir);
+                let neighbor_pos = global_pos + GlobalPosition::from(dir);
                 if let Some(neighbor) = chunks.get_block(neighbor_pos, center_offset.curr()) {
-                    if neighbor.transparency == Transparency::Opaque {
+                    if neighbor.transparency() == Transparency::Opaque {
                         continue;
                     }
                 }
                 indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
-                uvs.extend(atlas_uvs(atlas, block, dir));
+                uvs.extend(atlas_uvs(atlas, block_id, dir));
                 for vertex in vertices {
-                    positions.push(vertex + block.local_pos().as_vec3());
+                    positions.push(vertex + IVec3::from(local_pos).as_vec3());
                 }
             }
         }
@@ -150,13 +154,7 @@ pub(super) fn reorder_chunks(
         return;
     }
 
-    chunks.reorder(|old, new| {
-        for transform in &query {
-            let prev_idx = Offset::from(transform).as_index(center_offset.prev());
-            let curr_idx = Offset::from(transform).as_index(center_offset.curr());
-            mem::swap(&mut old[prev_idx], &mut new[curr_idx]);
-        }
-    });
+    chunks.reorder(query.iter().map(Offset::from), *center_offset);
 }
 
 pub(super) fn spawn_chunks(
@@ -168,24 +166,23 @@ pub(super) fn spawn_chunks(
     if !center_offset.is_changed() || center_offset.is_added() {
         return;
     }
-
     let chunks = &mut *chunks;
 
     for &offset in &chunks.offsets {
         if chunks.entities.contains_key(&offset) {
             continue;
         }
-        let blocks = &mut chunks.blocks[offset.as_index(center_offset.curr())];
+        let blocks = &mut chunks.blocks[offset.to_index(center_offset.curr())];
 
-        let material = chunk_texture.material.clone();
-
-        for (i, block) in generate_blocks(offset).enumerate() {
+        for (i, block) in generate_blocks().enumerate() {
             blocks[i] = block;
         }
 
         chunks.for_each_neighbor(offset, |nbor| {
             commands.entity(nbor).insert(Dirty);
         });
+
+        let material = chunk_texture.material.clone();
         chunks.entities.entry(offset).or_insert_with(|| {
             commands
                 .spawn((

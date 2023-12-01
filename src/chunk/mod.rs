@@ -3,7 +3,7 @@ mod systems;
 
 pub(crate) use resources::CenterOffset;
 
-use crate::{offset::Offset, player::player_movement, settings::RENDER_DISTANCE};
+use crate::{player::player_movement, position::Offset, settings::RENDER_DISTANCE};
 use bevy::{
     app::{App, Plugin},
     prelude::*,
