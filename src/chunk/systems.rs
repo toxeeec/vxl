@@ -1,5 +1,4 @@
 use super::{
-    chunk_in_bounds,
     resources::{CenterOffset, Chunks},
     Chunk, Dirty,
 };
@@ -13,7 +12,9 @@ use crate::{
 use bevy::{
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology},
+    tasks::{block_on, AsyncComputeTaskPool, Task},
 };
+use futures_lite::future;
 use strum::IntoEnumIterator;
 
 #[rustfmt::skip]
@@ -61,52 +62,91 @@ const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 const VERTICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACES_VERTICES[0].len();
 const INDICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACE_INDICES.len();
 
+#[derive(Component)]
+pub(super) struct ChunkMeshingTask(Task<Option<Mesh>>);
+
 pub(super) fn mesh_chunks(
     mut commands: Commands,
-    mut q_chunk: Query<(Entity, &Transform, &mut Handle<Mesh>), (With<Chunk>, Added<Dirty>)>,
+    mut q_chunk: Query<(Entity, &Transform), (With<Chunk>, Added<Dirty>)>,
     texture_atlases: Res<Assets<TextureAtlas>>,
     chunk_texture: Res<ChunkTexture>,
     chunks: Res<Chunks>,
     center_offset: Res<CenterOffset>,
+) {
+    let atlas = texture_atlases.get(&chunk_texture.atlas).unwrap().clone();
+    let thread_pool = AsyncComputeTaskPool::get();
+    for (e, &transform) in &mut q_chunk {
+        let offset = Offset::from(transform);
+        let atlas = atlas.clone();
+        let blocks = chunks.blocks.clone();
+        let center_offset = center_offset.curr.clone();
+
+        let task = thread_pool.spawn(async move {
+            let center_offset = *center_offset.read().await;
+            let blocks = blocks.read().await;
+            match blocks.get_chunk(offset, center_offset) {
+                Some(chunk) => {
+                    let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
+                    let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
+                    let mut indices = Vec::with_capacity(INDICES_CAPACITY);
+
+                    for (i, &block_id) in chunk.iter().enumerate() {
+                        if block_id.transparency() == Transparency::Invisible {
+                            continue;
+                        }
+                        let local_pos = LocalPosition::from_index(i);
+                        let global_pos = GlobalPosition::from_local(local_pos, transform.into());
+
+                        for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
+                            let neighbor_pos = global_pos + GlobalPosition::from(dir);
+                            if let Some(neighbor) = blocks.get(neighbor_pos, center_offset) {
+                                if neighbor.transparency() == Transparency::Opaque {
+                                    continue;
+                                }
+                            } else if neighbor_pos.in_bounds() {
+                                continue;
+                            }
+                            indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
+                            uvs.extend(atlas_uvs(&atlas, block_id, dir));
+                            for vertex in vertices {
+                                positions.push(vertex + IVec3::from(local_pos).as_vec3());
+                            }
+                        }
+                    }
+
+                    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+                    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+                    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+                    mesh.set_indices(Some(Indices::U32(indices)));
+
+                    Some(mesh)
+                }
+                None => None,
+            }
+        });
+        commands.entity(e).insert(ChunkMeshingTask(task));
+    }
+}
+
+pub(super) fn handle_meshing_tasks(
+    mut commands: Commands,
+    mut transform_tasks: Query<
+        (
+            Entity,
+            &mut Handle<Mesh>,
+            &mut Visibility,
+            &mut ChunkMeshingTask,
+        ),
+        With<Chunk>,
+    >,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let atlas = texture_atlases.get(&chunk_texture.atlas).unwrap();
-    for (e, &transform, mut m) in &mut q_chunk {
-        let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
-        let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
-        let mut indices = Vec::with_capacity(INDICES_CAPACITY);
-        let offset = Offset::from(transform);
-
-        for (i, &block_id) in chunks.blocks[offset.to_index(center_offset.curr())]
-            .iter()
-            .enumerate()
-        {
-            if block_id.transparency() == Transparency::Invisible {
-                continue;
-            }
-            let local_pos = LocalPosition::from_index(i);
-            let global_pos = GlobalPosition::from_local(local_pos, Offset::from(transform));
-            for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
-                let neighbor_pos = global_pos + GlobalPosition::from(dir);
-                if let Some(neighbor) = chunks.get_block(neighbor_pos, center_offset.curr()) {
-                    if neighbor.transparency() == Transparency::Opaque {
-                        continue;
-                    }
-                }
-                indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
-                uvs.extend(atlas_uvs(atlas, block_id, dir));
-                for vertex in vertices {
-                    positions.push(vertex + IVec3::from(local_pos).as_vec3());
-                }
-            }
+    for (entity, mut handle, mut visibility, mut task) in &mut transform_tasks {
+        if let Some(Some(mesh)) = block_on(future::poll_once(&mut task.0)) {
+            *visibility = Visibility::Visible;
+            *handle = meshes.add(mesh);
+            commands.entity(entity).remove::<ChunkMeshingTask>();
         }
-
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.set_indices(Some(Indices::U32(indices)));
-        *m = meshes.add(mesh);
-        commands.entity(e).remove::<Dirty>();
     }
 }
 
@@ -120,28 +160,16 @@ pub(super) fn unload_distant_chunks(
         return;
     }
 
-    for &transform in &query {
-        if !chunk_in_bounds(transform, center_offset.curr()) {
-            if let Some(e) = chunks.remove(transform.into()) {
+    for transform in &query {
+        let offset = Offset::from(transform);
+        if !offset.in_bounds(*center_offset.curr.blocking_read()) {
+            if let Some(e) = chunks.entities.remove(&offset) {
                 commands.entity(e).despawn();
             }
-            chunks.for_each_neighbor(transform.into(), |nbor| {
+            chunks.for_each_neighbor(offset, |nbor| {
                 commands.entity(nbor).insert(Dirty);
             });
         }
-    }
-}
-
-pub(super) fn update_offsets(center_offset: Res<CenterOffset>, mut chunks: ResMut<Chunks>) {
-    if !center_offset.is_changed() {
-        return;
-    }
-
-    for (i, offset) in chunks.offsets.iter_mut().enumerate() {
-        *offset = Offset::new(
-            (i as i32 % WORLD_WIDTH) + center_offset.curr().0.x - RENDER_DISTANCE,
-            (i as i32 / WORLD_WIDTH) + center_offset.curr().0.y - RENDER_DISTANCE,
-        );
     }
 }
 
@@ -154,7 +182,7 @@ pub(super) fn reorder_chunks(
         return;
     }
 
-    chunks.reorder(query.iter().map(Offset::from), *center_offset);
+    chunks.reorder(query.iter().map(Offset::from), &center_offset);
 }
 
 pub(super) fn spawn_chunks(
@@ -167,16 +195,23 @@ pub(super) fn spawn_chunks(
         return;
     }
     let chunks = &mut *chunks;
+    let center_offset = *center_offset.curr.blocking_read();
 
-    for &offset in &chunks.offsets {
+    for offset in (0..WORLD_WIDTH * WORLD_WIDTH).map(|i| {
+        Offset::new(
+            (i % WORLD_WIDTH) + center_offset.0.x - RENDER_DISTANCE,
+            (i / WORLD_WIDTH) + center_offset.0.y - RENDER_DISTANCE,
+        )
+    }) {
         if chunks.entities.contains_key(&offset) {
             continue;
         }
-        let blocks = &mut chunks.blocks[offset.to_index(center_offset.curr())];
-
-        for (i, block) in generate_blocks().enumerate() {
-            blocks[i] = block;
-        }
+        let mut blocks = chunks.blocks.blocking_write();
+        blocks
+            .chunk_mut(offset, center_offset)
+            .iter_mut()
+            .zip(generate_blocks())
+            .for_each(|(block, new_block)| *block = new_block);
 
         chunks.for_each_neighbor(offset, |nbor| {
             commands.entity(nbor).insert(Dirty);
@@ -189,6 +224,7 @@ pub(super) fn spawn_chunks(
                     MaterialMeshBundle {
                         transform: offset.into(),
                         material: material.clone(),
+                        visibility: Visibility::Hidden,
                         ..Default::default()
                     },
                     Chunk,

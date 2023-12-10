@@ -30,7 +30,7 @@ impl From<Direction> for GlobalPosition {
 impl From<Direction> for Offset {
     fn from(dir: Direction) -> Self {
         match dir {
-            Direction::North => Self::new( 0,  1),
+            Direction::North => Self::new( 0, -1),
             Direction::East  => Self::new( 1,  0),
             Direction::South => Self::new( 0,  1),
             Direction::West  => Self::new(-1,  0),

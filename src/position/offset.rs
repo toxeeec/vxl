@@ -14,6 +14,11 @@ impl Offset {
         (((self.0.y - center_offset.0.y + RENDER_DISTANCE) * WORLD_WIDTH)
             + (self.0.x - center_offset.0.x + RENDER_DISTANCE)) as usize
     }
+
+    pub(crate) fn in_bounds(self, center_offset: Offset) -> bool {
+        let dist = (self.0 - center_offset.0).abs();
+        dist.x <= RENDER_DISTANCE && dist.y <= RENDER_DISTANCE
+    }
 }
 
 impl From<IVec3> for Offset {

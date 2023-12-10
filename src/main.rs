@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
 mod block;
+mod camera;
 mod chunk;
 mod direction;
 mod player;
@@ -13,6 +14,7 @@ use bevy::{
     prelude::*,
     window::CursorGrabMode,
 };
+use camera::CameraPlugin;
 use chunk::ChunkPlugin;
 use player::PlayerPlugin;
 use texture::TexturePlugin;
@@ -23,6 +25,7 @@ fn main() {
             DefaultPlugins.set(ImagePlugin::default_nearest()),
             FrameTimeDiagnosticsPlugin,
             TexturePlugin,
+            CameraPlugin,
             PlayerPlugin,
             ChunkPlugin,
         ))

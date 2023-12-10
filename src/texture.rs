@@ -6,16 +6,6 @@ use bevy::{
     render::render_resource::{AsBindGroup, ShaderRef},
 };
 
-#[derive(Debug)]
-pub(super) struct TexturePlugin;
-
-impl Plugin for TexturePlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(MaterialPlugin::<ChunkMaterial>::default())
-            .init_resource::<ChunkTexture>();
-    }
-}
-
 #[derive(Resource, Debug)]
 pub(crate) struct ChunkTexture {
     pub(crate) material: Handle<ChunkMaterial>,
@@ -64,4 +54,14 @@ pub(crate) fn atlas_uvs(atlas: &TextureAtlas, block_id: BlockId, dir: Direction)
         [min_u, max_v], // bottom-left
         [max_u, max_v], // bottom-right
     ]
+}
+
+#[derive(Debug)]
+pub(super) struct TexturePlugin;
+
+impl Plugin for TexturePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(MaterialPlugin::<ChunkMaterial>::default())
+            .init_resource::<ChunkTexture>();
+    }
 }
