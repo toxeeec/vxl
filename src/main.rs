@@ -3,6 +3,7 @@
 mod block;
 mod camera;
 mod chunk;
+mod debug;
 mod direction;
 mod player;
 mod position;
@@ -16,6 +17,7 @@ use bevy::{
 };
 use camera::CameraPlugin;
 use chunk::ChunkPlugin;
+use debug::DebugPlugin;
 use player::PlayerPlugin;
 use texture::TexturePlugin;
 
@@ -28,10 +30,11 @@ fn main() {
             CameraPlugin,
             PlayerPlugin,
             ChunkPlugin,
+            DebugPlugin,
         ))
+        .insert_resource(Msaa::Off)
         .add_systems(Startup, (setup, spawn_debug_text))
         .add_systems(Update, display_debug_text)
-        .insert_resource(Msaa::Off)
         .run();
 }
 

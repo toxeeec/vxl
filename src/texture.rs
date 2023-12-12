@@ -1,9 +1,16 @@
 use crate::block::BlockId;
 use crate::direction::Direction;
 use bevy::{
+    pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
     reflect::TypePath,
-    render::render_resource::{AsBindGroup, ShaderRef},
+    render::{
+        mesh::MeshVertexBufferLayout,
+        render_resource::{
+            AsBindGroup, PolygonMode, RenderPipelineDescriptor, ShaderRef,
+            SpecializedMeshPipelineError,
+        },
+    },
 };
 
 #[derive(Resource, Debug)]
@@ -13,10 +20,12 @@ pub(crate) struct ChunkTexture {
 }
 
 #[derive(Asset, AsBindGroup, TypePath, Clone, Debug)]
+#[bind_group_data(ChunkMaterialKey)]
 pub(crate) struct ChunkMaterial {
     #[texture(0, dimension = "2d")]
     #[sampler(1)]
     pub(crate) texture: Handle<Image>,
+    pub(crate) wireframe_mode: bool,
 }
 
 impl FromWorld for ChunkTexture {
@@ -28,6 +37,7 @@ impl FromWorld for ChunkTexture {
             .resource_mut::<Assets<ChunkMaterial>>()
             .add(ChunkMaterial {
                 texture: texture_atlas.texture.clone(),
+                wireframe_mode: false,
             });
         let atlas = world
             .resource_mut::<Assets<TextureAtlas>>()
@@ -40,6 +50,33 @@ impl FromWorld for ChunkTexture {
 impl Material for ChunkMaterial {
     fn fragment_shader() -> ShaderRef {
         "shaders/chunk.wgsl".into()
+    }
+
+    fn specialize(
+        _pipeline: &MaterialPipeline<Self>,
+        descriptor: &mut RenderPipelineDescriptor,
+        _layout: &MeshVertexBufferLayout,
+        key: MaterialPipelineKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        descriptor.primitive.polygon_mode = if key.bind_group_data.wireframe_mode {
+            PolygonMode::Line
+        } else {
+            PolygonMode::Fill
+        };
+        Ok(())
+    }
+}
+
+#[derive(Eq, PartialEq, Hash, Clone)]
+pub struct ChunkMaterialKey {
+    wireframe_mode: bool,
+}
+
+impl From<&ChunkMaterial> for ChunkMaterialKey {
+    fn from(material: &ChunkMaterial) -> Self {
+        Self {
+            wireframe_mode: material.wireframe_mode,
+        }
     }
 }
 
