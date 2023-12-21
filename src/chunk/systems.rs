@@ -7,7 +7,7 @@ use crate::{
     direction::Direction,
     position::{GlobalPosition, LocalPosition, Offset},
     settings::{CHUNK_VOLUME, RENDER_DISTANCE, WORLD_WIDTH},
-    texture::{atlas_uvs, ChunkTexture},
+    texture::{atlas_uvs, ChunkTexture, ATTRIBUTE_DIRECTION},
 };
 use bevy::{
     prelude::*,
@@ -61,6 +61,7 @@ const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 
 const VERTICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACES_VERTICES[0].len();
 const INDICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACE_INDICES.len();
+const DIRECTIONS_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len();
 
 #[derive(Component, Debug)]
 pub(super) struct ChunkMeshingTask(Task<Option<Mesh>>);
@@ -87,6 +88,7 @@ pub(super) fn mesh_chunks(
                     let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
                     let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
                     let mut indices = Vec::with_capacity(INDICES_CAPACITY);
+                    let mut directions = Vec::with_capacity(DIRECTIONS_CAPACITY);
 
                     for (i, &block_id) in chunk.iter().enumerate() {
                         if block_id.transparency() == Transparency::Invisible {
@@ -111,6 +113,7 @@ pub(super) fn mesh_chunks(
                             }
                             indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
                             uvs.extend(atlas_uvs(&atlas, block_id, dir));
+                            directions.extend(FACES_VERTICES[0].map(|_| dir as u32));
                             for vertex in vertices {
                                 positions.push(vertex + IVec3::from(local_pos).as_vec3());
                             }
@@ -120,6 +123,7 @@ pub(super) fn mesh_chunks(
                     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
                     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
                     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+                    mesh.insert_attribute(ATTRIBUTE_DIRECTION, directions);
                     mesh.set_indices(Some(Indices::U32(indices)));
 
                     Some(mesh)

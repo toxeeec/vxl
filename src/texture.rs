@@ -5,10 +5,10 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
     render::{
-        mesh::MeshVertexBufferLayout,
+        mesh::{MeshVertexAttribute, MeshVertexBufferLayout},
         render_resource::{
             AsBindGroup, PolygonMode, RenderPipelineDescriptor, ShaderRef,
-            SpecializedMeshPipelineError,
+            SpecializedMeshPipelineError, VertexFormat,
         },
     },
 };
@@ -27,6 +27,9 @@ pub(crate) struct ChunkMaterial {
     pub(crate) texture: Handle<Image>,
     pub(crate) wireframe_mode: bool,
 }
+
+pub(crate) const ATTRIBUTE_DIRECTION: MeshVertexAttribute =
+    MeshVertexAttribute::new("Direction", 210209359, VertexFormat::Uint32);
 
 impl FromWorld for ChunkTexture {
     fn from_world(world: &mut World) -> Self {
@@ -48,6 +51,10 @@ impl FromWorld for ChunkTexture {
 }
 
 impl Material for ChunkMaterial {
+    fn vertex_shader() -> ShaderRef {
+        "shaders/chunk.wgsl".into()
+    }
+
     fn fragment_shader() -> ShaderRef {
         "shaders/chunk.wgsl".into()
     }
@@ -55,14 +62,20 @@ impl Material for ChunkMaterial {
     fn specialize(
         _pipeline: &MaterialPipeline<Self>,
         descriptor: &mut RenderPipelineDescriptor,
-        _layout: &MeshVertexBufferLayout,
+        layout: &MeshVertexBufferLayout,
         key: MaterialPipelineKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
+        descriptor.vertex.buffers = vec![layout.get_layout(&[
+            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+            Mesh::ATTRIBUTE_UV_0.at_shader_location(1),
+            ATTRIBUTE_DIRECTION.at_shader_location(2),
+        ])?];
         descriptor.primitive.polygon_mode = if key.bind_group_data.wireframe_mode {
             PolygonMode::Line
         } else {
             PolygonMode::Fill
         };
+
         Ok(())
     }
 }
