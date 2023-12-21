@@ -8,10 +8,10 @@ pub(crate) use systems::move_player;
 use systems::spawn_player;
 
 #[derive(Component, Debug)]
-pub(crate) struct Player;
+pub(super) struct Player;
 
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Reflect, Debug)]
-pub(crate) enum PlayerAction {
+pub(super) enum PlayerAction {
     Forward,
     Right,
     Backward,
@@ -21,7 +21,7 @@ pub(crate) enum PlayerAction {
 }
 
 #[derive(Bundle)]
-pub(crate) struct PlayerBundle {
+struct PlayerBundle {
     camera: Camera3dBundle,
     camera_input_manager: InputManagerBundle<CameraMovement>,
     player_input_manager: InputManagerBundle<PlayerAction>,
@@ -29,7 +29,7 @@ pub(crate) struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    pub(crate) fn new(transform: Transform) -> Self {
+    fn new(transform: Transform) -> Self {
         Self {
             player: Player,
             camera: Camera3dBundle {

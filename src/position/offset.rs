@@ -1,5 +1,5 @@
 use super::GlobalPosition;
-use crate::settings::{CHUNK_WIDTH, RENDER_DISTANCE, WORLD_WIDTH};
+use crate::settings::{CHUNK_WIDTH, RENDER_DISTANCE};
 use bevy::{prelude::*, utils::hashbrown::Equivalent};
 
 #[derive(PartialEq, Eq, Clone, Copy, Default, Hash, Debug)]
@@ -8,11 +8,6 @@ pub(crate) struct Offset(pub(crate) IVec2);
 impl Offset {
     pub(crate) fn new(x: i32, y: i32) -> Self {
         Offset(IVec2::new(x, y))
-    }
-
-    pub(crate) fn to_index(self, center_offset: Offset) -> usize {
-        (((self.0.y - center_offset.0.y + RENDER_DISTANCE) * WORLD_WIDTH)
-            + (self.0.x - center_offset.0.x + RENDER_DISTANCE)) as usize
     }
 
     pub(crate) fn in_bounds(self, center_offset: Offset) -> bool {

@@ -3,7 +3,7 @@ use super::{
     Chunk, Dirty,
 };
 use crate::{
-    block::{generate_blocks, Transparency},
+    block::Transparency,
     direction::Direction,
     position::{GlobalPosition, LocalPosition, Offset},
     settings::{CHUNK_VOLUME, RENDER_DISTANCE, WORLD_WIDTH},
@@ -62,7 +62,7 @@ const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 const VERTICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACES_VERTICES[0].len();
 const INDICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACE_INDICES.len();
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub(super) struct ChunkMeshingTask(Task<Option<Mesh>>);
 
 pub(super) fn mesh_chunks(
@@ -71,20 +71,18 @@ pub(super) fn mesh_chunks(
     texture_atlases: Res<Assets<TextureAtlas>>,
     chunk_texture: Res<ChunkTexture>,
     chunks: Res<Chunks>,
-    center_offset: Res<CenterOffset>,
 ) {
     let atlas = texture_atlases.get(&chunk_texture.atlas).unwrap().clone();
     let thread_pool = AsyncComputeTaskPool::get();
+
     for (e, &transform) in &mut q_chunk {
-        let offset = Offset::from(transform);
         let atlas = atlas.clone();
         let blocks = chunks.blocks.clone();
-        let center_offset = center_offset.curr.clone();
 
+        commands.entity(e).remove::<Dirty>();
         let task = thread_pool.spawn(async move {
-            let center_offset = *center_offset.read().await;
             let blocks = blocks.read().await;
-            match blocks.get_chunk(offset, center_offset) {
+            match blocks.get_chunk(transform.into()) {
                 Some(chunk) => {
                     let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
                     let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
@@ -99,12 +97,17 @@ pub(super) fn mesh_chunks(
 
                         for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
                             let neighbor_pos = global_pos + GlobalPosition::from(dir);
-                            if let Some(neighbor) = blocks.get(neighbor_pos, center_offset) {
-                                if neighbor.transparency() == Transparency::Opaque {
-                                    continue;
+                            match blocks.get_chunk(neighbor_pos.into()) {
+                                Some(neighbor_chunk) => {
+                                    if let Some(neighbor) = neighbor_chunk
+                                        .get(LocalPosition::from(neighbor_pos).to_index())
+                                    {
+                                        if neighbor.transparency() == Transparency::Opaque {
+                                            continue;
+                                        }
+                                    }
                                 }
-                            } else if neighbor_pos.in_bounds() {
-                                continue;
+                                None => continue,
                             }
                             indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
                             uvs.extend(atlas_uvs(&atlas, block_id, dir));
@@ -128,6 +131,78 @@ pub(super) fn mesh_chunks(
     }
 }
 
+pub(super) fn despawn_distant_chunks(
+    mut commands: Commands,
+    query: Query<&Transform, With<Chunk>>,
+    center_offset: Res<CenterOffset>,
+    mut chunks: ResMut<Chunks>,
+) {
+    if !center_offset.is_changed() || center_offset.is_added() {
+        return;
+    }
+    let chunks = &mut *chunks;
+    let mut blocks = chunks.blocks.blocking_write();
+
+    for transform in &query {
+        let offset = Offset::from(transform);
+        if !offset.in_bounds(center_offset.0) {
+            if let Some(e) = chunks.entities.remove(&offset) {
+                commands.entity(e).despawn();
+            }
+            blocks.remove_chunk(offset);
+            chunks.for_each_neighbor(offset, |nbor| {
+                commands.entity(nbor).insert(Dirty);
+            });
+        }
+    }
+}
+
+pub(super) fn spawn_chunks(
+    mut commands: Commands,
+    center_offset: Res<CenterOffset>,
+    chunk_texture: Res<ChunkTexture>,
+    mut chunks: ResMut<Chunks>,
+) {
+    if !center_offset.is_changed() || center_offset.is_added() {
+        return;
+    }
+    let chunks = &mut *chunks;
+    let mut blocks = chunks.blocks.blocking_write();
+    let center_offset = center_offset.0;
+
+    for offset in (0..WORLD_WIDTH * WORLD_WIDTH).map(|i| {
+        Offset::new(
+            (i % WORLD_WIDTH) + center_offset.0.x - RENDER_DISTANCE,
+            (i / WORLD_WIDTH) + center_offset.0.y - RENDER_DISTANCE,
+        )
+    }) {
+        if chunks.entities.contains_key(&offset) {
+            continue;
+        }
+        blocks.generate_chunk(offset);
+
+        chunks.for_each_neighbor(offset, |nbor| {
+            commands.entity(nbor).insert(Dirty);
+        });
+
+        chunks.entities.insert(
+            offset,
+            commands
+                .spawn((
+                    MaterialMeshBundle {
+                        transform: offset.into(),
+                        material: chunk_texture.material.clone(),
+                        visibility: Visibility::Hidden,
+                        ..Default::default()
+                    },
+                    Chunk,
+                    Dirty,
+                ))
+                .id(),
+        );
+    }
+}
+
 pub(super) fn handle_meshing_tasks(
     mut commands: Commands,
     mut transform_tasks: Query<
@@ -147,90 +222,5 @@ pub(super) fn handle_meshing_tasks(
             *handle = meshes.add(mesh);
             commands.entity(entity).remove::<ChunkMeshingTask>();
         }
-    }
-}
-
-pub(super) fn unload_distant_chunks(
-    mut commands: Commands,
-    query: Query<&Transform, With<Chunk>>,
-    center_offset: Res<CenterOffset>,
-    mut chunks: ResMut<Chunks>,
-) {
-    if !center_offset.is_changed() || center_offset.is_added() {
-        return;
-    }
-
-    for transform in &query {
-        let offset = Offset::from(transform);
-        if !offset.in_bounds(*center_offset.curr.blocking_read()) {
-            if let Some(e) = chunks.entities.remove(&offset) {
-                commands.entity(e).despawn();
-            }
-            chunks.for_each_neighbor(offset, |nbor| {
-                commands.entity(nbor).insert(Dirty);
-            });
-        }
-    }
-}
-
-pub(super) fn reorder_chunks(
-    query: Query<&Transform, With<Chunk>>,
-    center_offset: Res<CenterOffset>,
-    mut chunks: ResMut<Chunks>,
-) {
-    if !center_offset.is_changed() || center_offset.is_added() {
-        return;
-    }
-
-    chunks.reorder(query.iter().map(Offset::from), &center_offset);
-}
-
-pub(super) fn spawn_chunks(
-    mut commands: Commands,
-    chunk_texture: Res<ChunkTexture>,
-    center_offset: Res<CenterOffset>,
-    mut chunks: ResMut<Chunks>,
-) {
-    if !center_offset.is_changed() || center_offset.is_added() {
-        return;
-    }
-    let chunks = &mut *chunks;
-    let center_offset = *center_offset.curr.blocking_read();
-
-    for offset in (0..WORLD_WIDTH * WORLD_WIDTH).map(|i| {
-        Offset::new(
-            (i % WORLD_WIDTH) + center_offset.0.x - RENDER_DISTANCE,
-            (i / WORLD_WIDTH) + center_offset.0.y - RENDER_DISTANCE,
-        )
-    }) {
-        if chunks.entities.contains_key(&offset) {
-            continue;
-        }
-        let mut blocks = chunks.blocks.blocking_write();
-        blocks
-            .chunk_mut(offset, center_offset)
-            .iter_mut()
-            .zip(generate_blocks())
-            .for_each(|(block, new_block)| *block = new_block);
-
-        chunks.for_each_neighbor(offset, |nbor| {
-            commands.entity(nbor).insert(Dirty);
-        });
-
-        let material = chunk_texture.material.clone();
-        chunks.entities.entry(offset).or_insert_with(|| {
-            commands
-                .spawn((
-                    MaterialMeshBundle {
-                        transform: offset.into(),
-                        material: material.clone(),
-                        visibility: Visibility::Hidden,
-                        ..Default::default()
-                    },
-                    Chunk,
-                    Dirty,
-                ))
-                .id()
-        });
     }
 }

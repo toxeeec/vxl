@@ -6,7 +6,8 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 pub(super) fn spawn_player(mut commands: Commands) {
-    let transform = Transform::from_xyz(0.0, 8.0, 0.0).looking_at(Vec3::splat(8.0), Vec3::Y);
+    let transform =
+        Transform::from_xyz(0.0, 100.0, 0.0).looking_at(Vec3::new(0.0, 100.0, 0.0), Vec3::Y);
     commands.spawn(PlayerBundle::new(transform));
 }
 
@@ -46,6 +47,6 @@ pub(crate) fn move_player(
     let new_offset = Offset::from(*transform);
 
     if new_offset != offset {
-        center_offset.update(new_offset);
+        center_offset.0 = new_offset;
     }
 }

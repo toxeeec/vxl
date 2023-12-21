@@ -1,5 +1,5 @@
 use super::{LocalPosition, Offset};
-use crate::settings::{CHUNK_HEIGHT, CHUNK_WIDTH};
+use crate::settings::CHUNK_WIDTH;
 use bevy::prelude::*;
 use std::ops::Add;
 
@@ -9,10 +9,6 @@ pub(crate) struct GlobalPosition(pub(crate) IVec3);
 impl GlobalPosition {
     pub(crate) fn from_local(pos: LocalPosition, offset: Offset) -> Self {
         GlobalPosition(pos.0) + GlobalPosition::from(offset)
-    }
-
-    pub(crate) fn in_bounds(self) -> bool {
-        self.0.y >= 0 && self.0.y < CHUNK_HEIGHT
     }
 }
 

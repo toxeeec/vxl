@@ -3,11 +3,11 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Reflect, Debug)]
-pub(crate) enum DebugAction {
+enum DebugAction {
     WireframeMode,
 }
 
-pub(super) fn handle_debug_hotkeys(
+fn handle_debug_hotkeys(
     query: Query<&ActionState<DebugAction>>,
     chunk_texture: Res<ChunkTexture>,
     mut materials: ResMut<Assets<ChunkMaterial>>,

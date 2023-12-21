@@ -7,9 +7,7 @@ pub(crate) enum CameraMovement {
     Rotation,
 }
 
-pub(crate) fn rotate_camera(
-    mut query: Query<(&mut Transform, &ActionState<CameraMovement>), With<Camera3d>>,
-) {
+fn rotate_camera(mut query: Query<(&mut Transform, &ActionState<CameraMovement>), With<Camera3d>>) {
     let (mut transform, action_state) = query.single_mut();
 
     let delta = action_state

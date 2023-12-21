@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use super::global_position::GlobalPosition;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub(crate) struct LocalPosition(pub(crate) IVec3);
 
 impl LocalPosition {
