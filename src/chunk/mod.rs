@@ -9,7 +9,9 @@ use bevy::{
     prelude::*,
 };
 use resources::Chunks;
-use systems::{despawn_distant_chunks, handle_meshing_tasks, mesh_chunks, spawn_chunks};
+use systems::{
+    despawn_distant_chunks, handle_meshing_tasks, handle_spawning_tasks, mesh_chunks, spawn_chunks,
+};
 
 #[derive(Component, Debug)]
 struct Chunk;
@@ -25,10 +27,10 @@ impl Plugin for ChunkPlugin {
         app.init_resource::<Chunks>()
             .add_systems(
                 Update,
-                (despawn_distant_chunks, spawn_chunks)
+                (handle_spawning_tasks, despawn_distant_chunks, spawn_chunks)
                     .chain()
                     .after(move_player),
             )
-            .add_systems(PostUpdate, (mesh_chunks, handle_meshing_tasks).chain());
+            .add_systems(PostUpdate, (mesh_chunks, handle_meshing_tasks));
     }
 }

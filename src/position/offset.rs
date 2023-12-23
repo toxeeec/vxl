@@ -1,6 +1,7 @@
 use super::GlobalPosition;
 use crate::settings::{CHUNK_WIDTH, RENDER_DISTANCE};
-use bevy::{prelude::*, utils::hashbrown::Equivalent};
+use bevy::prelude::*;
+use std::ops::{Add, Sub};
 
 #[derive(PartialEq, Eq, Clone, Copy, Default, Hash, Debug)]
 pub(crate) struct Offset(pub(crate) IVec2);
@@ -59,8 +60,16 @@ impl From<Offset> for Transform {
     }
 }
 
-impl Equivalent<Offset> for IVec2 {
-    fn equivalent(&self, key: &Offset) -> bool {
-        *self == key.0
+impl Add<Self> for Offset {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Sub<Self> for Offset {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 - rhs.0)
     }
 }

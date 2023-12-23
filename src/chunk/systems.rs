@@ -3,10 +3,10 @@ use super::{
     Chunk, Dirty,
 };
 use crate::{
-    block::Transparency,
+    block::{generate_chunk, BlockId, Transparency, VisibleChunksIterator},
     direction::Direction,
     position::{GlobalPosition, LocalPosition, Offset},
-    settings::{CHUNK_VOLUME, RENDER_DISTANCE, WORLD_WIDTH},
+    settings::CHUNK_VOLUME,
     texture::{atlas_uvs, ChunkTexture, ATTRIBUTE_DIRECTION},
 };
 use bevy::{
@@ -15,6 +15,7 @@ use bevy::{
     tasks::{block_on, AsyncComputeTaskPool, Task},
 };
 use futures_lite::future;
+use std::sync::Arc;
 use strum::IntoEnumIterator;
 
 #[rustfmt::skip]
@@ -64,11 +65,14 @@ const INDICES_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len() * FACE_I
 const DIRECTIONS_CAPACITY: usize = CHUNK_VOLUME / 2 * FACES_VERTICES.len();
 
 #[derive(Component, Debug)]
-pub(super) struct ChunkMeshingTask(Task<Option<Mesh>>);
+pub(super) struct ChunkMeshingTask(Task<Mesh>);
+
+#[derive(Component, Debug)]
+pub(super) struct ChunkSpawningTask(pub(super) Task<(Offset, Arc<[BlockId]>)>);
 
 pub(super) fn mesh_chunks(
     mut commands: Commands,
-    mut q_chunk: Query<(Entity, &Transform), (With<Chunk>, Added<Dirty>)>,
+    mut q_chunk: Query<(Entity, &Transform), (With<Chunk>, With<Dirty>)>,
     texture_atlases: Res<Assets<TextureAtlas>>,
     chunk_texture: Res<ChunkTexture>,
     chunks: Res<Chunks>,
@@ -78,60 +82,60 @@ pub(super) fn mesh_chunks(
 
     for (e, &transform) in &mut q_chunk {
         let atlas = atlas.clone();
-        let blocks = chunks.blocks.clone();
+        let offset = transform.into();
 
-        commands.entity(e).remove::<Dirty>();
-        let task = thread_pool.spawn(async move {
-            let blocks = blocks.read().await;
-            match blocks.get_chunk(transform.into()) {
-                Some(chunk) => {
-                    let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
-                    let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
-                    let mut indices = Vec::with_capacity(INDICES_CAPACITY);
-                    let mut directions = Vec::with_capacity(DIRECTIONS_CAPACITY);
+        if let Some(chunk) = chunks.blocks.get_chunk(offset) {
+            let neighbors = chunks.blocks.get_neighboring_chunks(offset);
+            let task = thread_pool.spawn(async move {
+                let mut positions = Vec::with_capacity(VERTICES_CAPACITY);
+                let mut uvs = Vec::with_capacity(VERTICES_CAPACITY);
+                let mut indices = Vec::with_capacity(INDICES_CAPACITY);
+                let mut directions = Vec::with_capacity(DIRECTIONS_CAPACITY);
 
-                    for (i, &block_id) in chunk.iter().enumerate() {
-                        if block_id.transparency() == Transparency::Invisible {
-                            continue;
-                        }
-                        let local_pos = LocalPosition::from_index(i);
-                        let global_pos = GlobalPosition::from_local(local_pos, transform.into());
+                for (i, &block_id) in chunk.iter().enumerate() {
+                    if block_id.transparency() == Transparency::Invisible {
+                        continue;
+                    }
+                    let local_pos = LocalPosition::from_index(i);
+                    let global_pos = GlobalPosition::from_local(local_pos, transform.into());
 
-                        for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
-                            let neighbor_pos = global_pos + GlobalPosition::from(dir);
-                            match blocks.get_chunk(neighbor_pos.into()) {
-                                Some(neighbor_chunk) => {
-                                    if let Some(neighbor) = neighbor_chunk
-                                        .get(LocalPosition::from(neighbor_pos).to_index())
-                                    {
-                                        if neighbor.transparency() == Transparency::Opaque {
-                                            continue;
-                                        }
+                    for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
+                        let neighbor_pos = global_pos + GlobalPosition::from(dir);
+                        match neighbors.get_chunk(neighbor_pos.into()) {
+                            Some(neighbor_chunk) => {
+                                if let Some(neighbor) =
+                                    neighbor_chunk.get(LocalPosition::from(neighbor_pos).to_index())
+                                {
+                                    if neighbor.transparency() == Transparency::Opaque {
+                                        continue;
                                     }
                                 }
-                                None => continue,
                             }
-                            indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
-                            uvs.extend(atlas_uvs(&atlas, block_id, dir));
-                            directions.extend(FACES_VERTICES[0].map(|_| dir as u32));
-                            for vertex in vertices {
-                                positions.push(vertex + IVec3::from(local_pos).as_vec3());
-                            }
+                            None => continue,
+                        }
+                        indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
+                        uvs.extend(atlas_uvs(&atlas, block_id, dir));
+                        directions.extend(FACES_VERTICES[0].map(|_| dir as u32));
+                        for vertex in vertices {
+                            positions.push(vertex + IVec3::from(local_pos).as_vec3());
                         }
                     }
-
-                    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-                    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-                    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-                    mesh.insert_attribute(ATTRIBUTE_DIRECTION, directions);
-                    mesh.set_indices(Some(Indices::U32(indices)));
-
-                    Some(mesh)
                 }
-                None => None,
-            }
-        });
-        commands.entity(e).insert(ChunkMeshingTask(task));
+
+                let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+                mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+                mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+                mesh.insert_attribute(ATTRIBUTE_DIRECTION, directions);
+                mesh.set_indices(Some(Indices::U32(indices)));
+
+                mesh
+            });
+
+            commands
+                .entity(e)
+                .insert(ChunkMeshingTask(task))
+                .remove::<Dirty>();
+        }
     }
 }
 
@@ -144,8 +148,6 @@ pub(super) fn despawn_distant_chunks(
     if !center_offset.is_changed() || center_offset.is_added() {
         return;
     }
-    let chunks = &mut *chunks;
-    let mut blocks = chunks.blocks.blocking_write();
 
     for transform in &query {
         let offset = Offset::from(transform);
@@ -153,7 +155,7 @@ pub(super) fn despawn_distant_chunks(
             if let Some(e) = chunks.entities.remove(&offset) {
                 commands.entity(e).despawn();
             }
-            blocks.remove_chunk(offset);
+            chunks.blocks.remove_chunk(offset);
             chunks.for_each_neighbor(offset, |nbor| {
                 commands.entity(nbor).insert(Dirty);
             });
@@ -171,23 +173,15 @@ pub(super) fn spawn_chunks(
         return;
     }
     let chunks = &mut *chunks;
-    let mut blocks = chunks.blocks.blocking_write();
-    let center_offset = center_offset.0;
+    let thread_pool = AsyncComputeTaskPool::get();
 
-    for offset in (0..WORLD_WIDTH * WORLD_WIDTH).map(|i| {
-        Offset::new(
-            (i % WORLD_WIDTH) + center_offset.0.x - RENDER_DISTANCE,
-            (i / WORLD_WIDTH) + center_offset.0.y - RENDER_DISTANCE,
-        )
-    }) {
+    VisibleChunksIterator::new(*center_offset).for_each(|offset| {
         if chunks.entities.contains_key(&offset) {
-            continue;
+            return;
         }
-        blocks.generate_chunk(offset);
 
-        chunks.for_each_neighbor(offset, |nbor| {
-            commands.entity(nbor).insert(Dirty);
-        });
+        let perlin = chunks.blocks.perlin.clone();
+        let task = thread_pool.spawn(async move { (offset, generate_chunk(&perlin, offset)) });
 
         chunks.entities.insert(
             offset,
@@ -200,16 +194,16 @@ pub(super) fn spawn_chunks(
                         ..Default::default()
                     },
                     Chunk,
-                    Dirty,
+                    ChunkSpawningTask(task),
                 ))
                 .id(),
         );
-    }
+    });
 }
 
 pub(super) fn handle_meshing_tasks(
     mut commands: Commands,
-    mut transform_tasks: Query<
+    mut query: Query<
         (
             Entity,
             &mut Handle<Mesh>,
@@ -220,11 +214,30 @@ pub(super) fn handle_meshing_tasks(
     >,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (entity, mut handle, mut visibility, mut task) in &mut transform_tasks {
-        if let Some(Some(mesh)) = block_on(future::poll_once(&mut task.0)) {
+    for (entity, mut handle, mut visibility, mut task) in &mut query {
+        if let Some(mesh) = block_on(future::poll_once(&mut task.0)) {
             *visibility = Visibility::Visible;
             *handle = meshes.add(mesh);
             commands.entity(entity).remove::<ChunkMeshingTask>();
+        }
+    }
+}
+
+pub(super) fn handle_spawning_tasks(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut ChunkSpawningTask)>,
+    mut chunks: ResMut<Chunks>,
+) {
+    for (entity, mut task) in &mut query {
+        if let Some((offset, chunk)) = block_on(future::poll_once(&mut task.0)) {
+            chunks.blocks.insert_chunk(offset, chunk);
+            commands
+                .entity(entity)
+                .insert(Dirty)
+                .remove::<ChunkSpawningTask>();
+            chunks.for_each_neighbor(offset, |nbor| {
+                commands.entity(nbor).insert(Dirty);
+            });
         }
     }
 }

@@ -1,7 +1,6 @@
+use super::global_position::GlobalPosition;
 use crate::settings::{CHUNK_AREA, CHUNK_WIDTH};
 use bevy::prelude::*;
-
-use super::global_position::GlobalPosition;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub(crate) struct LocalPosition(pub(crate) IVec3);

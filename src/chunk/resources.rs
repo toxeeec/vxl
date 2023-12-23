@@ -1,19 +1,20 @@
-use super::{Chunk, Dirty};
+use std::sync::Arc;
+
+use super::{systems::ChunkSpawningTask, Chunk};
 use crate::{
-    block::{Blocks, VisibleChunksIterator},
+    block::{generate_chunk, Blocks, VisibleChunksIterator},
     direction::Direction,
     position::Offset,
     settings::WORLD_WIDTH,
     texture::ChunkTexture,
 };
-use bevy::{prelude::*, utils::HashMap};
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use bevy::{prelude::*, tasks::AsyncComputeTaskPool, utils::HashMap};
+use noise::*;
 
 #[derive(Resource, Debug)]
 pub(crate) struct Chunks {
     pub(crate) entities: HashMap<Offset, Entity>,
-    pub(crate) blocks: Arc<RwLock<Blocks>>,
+    pub(crate) blocks: Blocks,
 }
 
 impl Chunks {
@@ -24,7 +25,7 @@ impl Chunks {
             Direction::South,
             Direction::West,
         ] {
-            if let Some(&e) = self.entities.get(&(offset.0 + Offset::from(dir).0)) {
+            if let Some(&e) = self.entities.get(&(offset + Offset::from(dir))) {
                 f(e)
             }
         }
@@ -36,9 +37,13 @@ impl FromWorld for Chunks {
         let center_offset = *world.resource::<CenterOffset>();
         let material = world.resource::<ChunkTexture>().material.clone();
 
+        let perlin = Arc::new(Fbm::<Perlin>::new(0).set_frequency(0.005));
+        let thread_pool = AsyncComputeTaskPool::get();
         let mut entities = HashMap::with_capacity((WORLD_WIDTH * WORLD_WIDTH) as usize);
 
         VisibleChunksIterator::new(center_offset).for_each(|offset| {
+            let perlin = perlin.clone();
+            let task = thread_pool.spawn(async move { (offset, generate_chunk(&perlin, offset)) });
             entities.insert(
                 offset,
                 world
@@ -50,7 +55,7 @@ impl FromWorld for Chunks {
                             ..Default::default()
                         },
                         Chunk,
-                        Dirty,
+                        ChunkSpawningTask(task),
                     ))
                     .id(),
             );
@@ -58,7 +63,7 @@ impl FromWorld for Chunks {
 
         Self {
             entities,
-            blocks: RwLock::new(Blocks::new(center_offset)).into(),
+            blocks: Blocks::new(perlin),
         }
     }
 }

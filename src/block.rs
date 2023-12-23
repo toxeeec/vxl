@@ -2,9 +2,9 @@ use crate::chunk::CenterOffset;
 use crate::direction::Direction;
 use crate::position::{LocalPosition, Offset};
 use crate::settings::{CHUNK_VOLUME, CHUNK_WIDTH, RENDER_DISTANCE, WORLD_WIDTH};
+use bevy::math::IVec2;
 use bevy::utils::HashMap;
 use noise::utils::PlaneMapBuilder;
-use noise::*;
 use noise::{utils::NoiseMapBuilder, Fbm, Perlin};
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -25,9 +25,15 @@ pub(crate) enum Transparency {
 
 #[derive(Debug)]
 pub(crate) struct Blocks {
-    map: HashMap<Offset, Box<[BlockId]>>,
-    pool: Vec<Box<[BlockId]>>,
-    perlin: Arc<Fbm<Perlin>>,
+    map: HashMap<Offset, Arc<[BlockId]>>,
+    pub(crate) perlin: Arc<Fbm<Perlin>>,
+}
+
+#[derive(Debug)]
+pub(crate) struct NeighboringChunks {
+    offset: Offset,
+    center: Option<Arc<[BlockId]>>,
+    neighbors: [Option<Arc<[BlockId]>>; 4],
 }
 
 #[derive(Debug)]
@@ -59,33 +65,51 @@ impl BlockId {
 }
 
 impl Blocks {
-    pub(crate) fn new(center_offset: CenterOffset) -> Self {
-        let seed = 0;
-        let perlin = Fbm::<Perlin>::new(seed).set_frequency(0.005);
+    pub(crate) fn new(perlin: Arc<Fbm<Perlin>>) -> Self {
         Self {
-            map: VisibleChunksIterator::new(center_offset)
-                .map(|offset| (offset, generate_chunk(None, &perlin, offset)))
-                .collect(),
-            pool: Vec::with_capacity((WORLD_WIDTH * 2 - 1) as usize),
-            perlin: perlin.into(),
+            map: HashMap::with_capacity((WORLD_WIDTH * WORLD_WIDTH) as usize),
+            perlin,
         }
     }
 
-    pub(crate) fn get_chunk(&self, offset: Offset) -> Option<&[BlockId]> {
-        self.map.get(&offset).map(|chunk| chunk.as_ref())
+    pub(crate) fn get_chunk(&self, offset: Offset) -> Option<Arc<[BlockId]>> {
+        self.map.get(&offset).cloned()
+    }
+
+    pub(crate) fn insert_chunk(&mut self, offset: Offset, chunk: Arc<[BlockId]>) {
+        self.map.insert(offset, chunk);
     }
 
     pub(crate) fn remove_chunk(&mut self, offset: Offset) {
-        if let Some(chunk) = self.map.remove(&offset) {
-            self.pool.push(chunk);
-        }
+        self.map.remove(&offset);
     }
 
-    pub(crate) fn generate_chunk(&mut self, offset: Offset) {
-        self.map.insert(
+    pub(crate) fn get_neighboring_chunks(&self, offset: Offset) -> NeighboringChunks {
+        NeighboringChunks {
             offset,
-            generate_chunk(self.pool.pop(), &self.perlin, offset),
-        );
+            center: self.map.get(&offset).cloned(),
+            neighbors: [
+                Direction::North,
+                Direction::East,
+                Direction::South,
+                Direction::West,
+            ]
+            .map(|dir| self.map.get(&(offset + Offset::from(dir))).cloned()),
+        }
+    }
+}
+
+impl NeighboringChunks {
+    #[rustfmt::skip]
+    pub(crate) fn get_chunk(&self, offset: Offset) -> Option<Arc<[BlockId]>> {
+        match self.offset - offset {
+            Offset(IVec2 { x:  0, y:  0 }) => self.center.clone(),
+            Offset(IVec2 { x:  0, y:  1 }) => self.neighbors[0].clone(),
+            Offset(IVec2 { x: -1, y:  0 }) => self.neighbors[1].clone(),
+            Offset(IVec2 { x:  0, y: -1 }) => self.neighbors[2].clone(),
+            Offset(IVec2 { x:  1, y:  0 }) => self.neighbors[3].clone(),
+            _ => panic!(),
+        }
     }
 }
 
@@ -116,12 +140,8 @@ impl Iterator for VisibleChunksIterator {
     }
 }
 
-fn generate_chunk(
-    buf: Option<Box<[BlockId]>>,
-    perlin: &Fbm<Perlin>,
-    offset: Offset,
-) -> Box<[BlockId]> {
-    let mut buf = buf.unwrap_or_else(|| vec![BlockId::Air; CHUNK_VOLUME].into_boxed_slice());
+pub(crate) fn generate_chunk(perlin: &Fbm<Perlin>, offset: Offset) -> Arc<[BlockId]> {
+    let mut buf = vec![BlockId::Air; CHUNK_VOLUME];
     debug_assert!(buf.len() == CHUNK_VOLUME);
 
     let heightmap = PlaneMapBuilder::<_, 2>::new(&perlin)
@@ -150,5 +170,5 @@ fn generate_chunk(
         }
     }
 
-    buf
+    buf.into()
 }

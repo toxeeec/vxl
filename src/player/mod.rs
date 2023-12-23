@@ -1,10 +1,11 @@
 mod systems;
 
+pub(crate) use systems::move_player;
+
 use crate::camera::CameraMovement;
 use crate::chunk::CenterOffset;
 use bevy::{core_pipeline::tonemapping::Tonemapping, prelude::*};
 use leafwing_input_manager::prelude::*;
-pub(crate) use systems::move_player;
 use systems::spawn_player;
 
 #[derive(Component, Debug)]
