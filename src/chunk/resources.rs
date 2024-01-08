@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::{systems::ChunkSpawningTask, Chunk};
+use super::ChunkBundle;
 use crate::{
     block::{generate_chunk, Blocks, VisibleChunksIterator},
     direction::Direction,
@@ -47,16 +47,7 @@ impl FromWorld for Chunks {
             entities.insert(
                 offset,
                 world
-                    .spawn((
-                        MaterialMeshBundle {
-                            transform: offset.into(),
-                            material: material.clone(),
-                            visibility: Visibility::Hidden,
-                            ..Default::default()
-                        },
-                        Chunk,
-                        ChunkSpawningTask(task),
-                    ))
+                    .spawn(ChunkBundle::new(offset, material.clone(), task))
                     .id(),
             );
         });

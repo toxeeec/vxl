@@ -7,7 +7,7 @@ pub(crate) enum CameraMovement {
     Rotation,
 }
 
-fn rotate_camera(mut query: Query<(&mut Transform, &ActionState<CameraMovement>), With<Camera3d>>) {
+pub(super) fn rotate_camera(mut query: Query<(&mut Transform, &ActionState<CameraMovement>)>) {
     let (mut transform, action_state) = query.single_mut();
 
     let delta = action_state
@@ -23,7 +23,7 @@ fn rotate_camera(mut query: Query<(&mut Transform, &ActionState<CameraMovement>)
     }
     pitch -= delta.y.to_radians() * SENSITIVITY;
     yaw -= delta.x.to_radians() * SENSITIVITY;
-    pitch = pitch.clamp(-89.9f32.to_radians(), 89.9f32.to_radians());
+    pitch = pitch.clamp(-89.999f32.to_radians(), 89.999f32.to_radians());
 
     transform.rotation =
         Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);

@@ -1,6 +1,6 @@
 use super::{
     resources::{CenterOffset, Chunks},
-    Chunk, Dirty,
+    Chunk, ChunkBundle, Dirty,
 };
 use crate::{
     block::{generate_chunk, BlockId, Transparency, VisibleChunksIterator},
@@ -101,23 +101,22 @@ pub(super) fn mesh_chunks(
 
                     for (vertices, dir) in FACES_VERTICES.into_iter().zip(Direction::iter()) {
                         let neighbor_pos = global_pos + GlobalPosition::from(dir);
-                        match neighbors.get_chunk(neighbor_pos.into()) {
-                            Some(neighbor_chunk) => {
-                                if let Some(neighbor) =
-                                    neighbor_chunk.get(LocalPosition::from(neighbor_pos).to_index())
-                                {
-                                    if neighbor.transparency() == Transparency::Opaque {
-                                        continue;
+
+                        if let Some(neighbor_chunk) = neighbors.get_chunk(neighbor_pos.into()) {
+                            if let Some(neighbor) =
+                                neighbor_chunk.get(LocalPosition::from(neighbor_pos).to_index())
+                            {
+                                if neighbor.transparency() != Transparency::Opaque {
+                                    indices.extend(
+                                        FACE_INDICES.map(|idx| positions.len() as u32 + idx),
+                                    );
+                                    uvs.extend(atlas_uvs(&atlas, block_id, dir));
+                                    directions.extend(FACES_VERTICES[0].map(|_| dir as u32));
+                                    for vertex in vertices {
+                                        positions.push(vertex + IVec3::from(local_pos).as_vec3());
                                     }
                                 }
                             }
-                            None => continue,
-                        }
-                        indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
-                        uvs.extend(atlas_uvs(&atlas, block_id, dir));
-                        directions.extend(FACES_VERTICES[0].map(|_| dir as u32));
-                        for vertex in vertices {
-                            positions.push(vertex + IVec3::from(local_pos).as_vec3());
                         }
                     }
                 }
@@ -186,15 +185,10 @@ pub(super) fn spawn_chunks(
         chunks.entities.insert(
             offset,
             commands
-                .spawn((
-                    MaterialMeshBundle {
-                        transform: offset.into(),
-                        material: chunk_texture.material.clone(),
-                        visibility: Visibility::Hidden,
-                        ..Default::default()
-                    },
-                    Chunk,
-                    ChunkSpawningTask(task),
+                .spawn(ChunkBundle::new(
+                    offset,
+                    chunk_texture.material.clone(),
+                    task,
                 ))
                 .id(),
         );

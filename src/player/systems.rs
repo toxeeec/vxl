@@ -1,52 +1,67 @@
-use super::{Player, PlayerAction, PlayerBundle};
+use super::{Player, PlayerAction};
 use crate::chunk::CenterOffset;
+use crate::physics::LinearVelocity;
 use crate::position::Offset;
 use crate::settings::PLAYER_SPEED;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-pub(super) fn spawn_player(mut commands: Commands) {
-    let transform =
-        Transform::from_xyz(0.0, 100.0, 0.0).looking_at(Vec3::new(0.0, 100.0, 0.0), Vec3::Y);
-    commands.spawn(PlayerBundle::new(transform));
+pub(crate) fn rotate_player(
+    mut q_player: Query<&mut Player>,
+    q_camera: Query<&Transform, With<Camera>>,
+) {
+    let mut player = q_player.single_mut();
+    let camera = q_camera.single();
+
+    player.rotation = camera.rotation.to_euler(EulerRot::YXZ).0;
 }
 
-pub(crate) fn move_player(
-    mut q_transform: Query<&mut Transform, With<Player>>,
+pub(crate) fn set_player_velocity(
+    mut q_player: Query<(&Player, &mut LinearVelocity)>,
     q_action: Query<&ActionState<PlayerAction>>,
-    time: Res<Time>,
-    mut center_offset: ResMut<CenterOffset>,
 ) {
-    let mut transform = q_transform.single_mut();
+    let (&Player { rotation }, mut velocity) = q_player.single_mut();
     let action_state = q_action.single();
-    let mut direction = Vec3::ZERO;
+    let mut new_velocity = LinearVelocity::ZERO;
+
+    let direction = Vec3::new(-rotation.sin(), 0.0, -rotation.cos());
 
     if action_state.pressed(PlayerAction::Forward) {
-        direction += transform.forward();
+        new_velocity += direction;
     }
     if action_state.pressed(PlayerAction::Backward) {
-        direction += transform.back();
+        new_velocity -= direction;
     }
     if action_state.pressed(PlayerAction::Left) {
-        direction += transform.left();
+        new_velocity -= direction.cross(Vec3::Y);
     }
     if action_state.pressed(PlayerAction::Right) {
-        direction += transform.right();
+        new_velocity += direction.cross(Vec3::Y);
     }
     if action_state.pressed(PlayerAction::Up) {
-        direction += Vec3::Y;
+        new_velocity += Vec3::Y;
     }
     if action_state.pressed(PlayerAction::Down) {
-        direction += Vec3::NEG_Y;
+        new_velocity += Vec3::NEG_Y;
     }
 
-    let offset = Offset::from(*transform);
+    new_velocity = new_velocity.normalize_or_zero() * PLAYER_SPEED;
+    if new_velocity != *velocity {
+        *velocity = new_velocity;
+    }
+}
 
-    let movement = direction.normalize_or_zero() * PLAYER_SPEED * time.delta_seconds();
-    transform.translation += movement;
-    let new_offset = Offset::from(*transform);
-
-    if new_offset != offset {
-        center_offset.0 = new_offset;
+pub(crate) fn update_center_offset(
+    query: Query<&Transform, (Changed<Transform>, With<Player>)>,
+    mut center_offset: ResMut<CenterOffset>,
+) {
+    match query.get_single() {
+        Ok(transform) => {
+            let player_offset = Offset::from(transform);
+            if player_offset != center_offset.0 {
+                *center_offset = CenterOffset(player_offset);
+            }
+        }
+        Err(_) => debug_assert!(query.is_empty()),
     }
 }
