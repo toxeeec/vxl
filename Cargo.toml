@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies.bevy]
 version = "0.13"
 default-features = false
-features = ["bevy_pbr", "bevy_winit", "multi-threaded"]
+features = ["bevy_pbr", "bevy_ui", "bevy_winit", "default_font", "multi-threaded"]
 
 [profile.dev]
 opt-level = 1

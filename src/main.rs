@@ -1,11 +1,13 @@
 use bevy::{core_pipeline::tonemapping::Tonemapping, prelude::*};
 use block::create_block_mesh;
+use diagnostics::DiagnosticsPlugin;
 
 mod block;
+mod diagnostics;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((DefaultPlugins, DiagnosticsPlugin))
         .add_systems(Startup, setup)
         .run();
 }
