@@ -1,15 +1,25 @@
+#![allow(clippy::type_complexity)]
+
 use bevy::{prelude::*, window::CursorGrabMode};
 use block::create_block_mesh;
 use camera::CameraPlugin;
 use diagnostics::DiagnosticsPlugin;
+use player::PlayerPlugin;
 
 mod block;
 mod camera;
 mod diagnostics;
+mod player;
+mod settings;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, CameraPlugin, DiagnosticsPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            CameraPlugin,
+            DiagnosticsPlugin,
+            PlayerPlugin,
+        ))
         .add_systems(Startup, setup)
         .run();
 }
