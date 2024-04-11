@@ -4,7 +4,7 @@ use bevy::{core_pipeline::tonemapping::Tonemapping, prelude::*};
 use leafwing_input_manager::prelude::*;
 
 use crate::{
-    player::{Player, PlayerAction},
+    player::{CameraAction, Player},
     settings,
 };
 
@@ -37,12 +37,12 @@ impl CameraPlugin {
 
     fn tilt_camera(
         mut q_camera: Query<&mut Transform, With<Camera>>,
-        q_action: Query<&ActionState<PlayerAction>>,
+        q_action: Query<&ActionState<CameraAction>>,
     ) {
         let mut camera = q_camera.single_mut();
         let action_state = q_action.single();
 
-        let delta = action_state.axis_pair(&PlayerAction::Turn).unwrap().y();
+        let delta = action_state.axis_pair(&CameraAction::Turn).unwrap().y();
         if delta == 0.0 {
             return;
         }

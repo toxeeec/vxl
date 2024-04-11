@@ -4,11 +4,13 @@ use bevy::{prelude::*, window::CursorGrabMode};
 use block::create_block_mesh;
 use camera::CameraPlugin;
 use diagnostics::DiagnosticsPlugin;
+use physics::PhysicsPlugin;
 use player::PlayerPlugin;
 
 mod block;
 mod camera;
 mod diagnostics;
+mod physics;
 mod player;
 mod settings;
 
@@ -18,6 +20,7 @@ fn main() {
             DefaultPlugins,
             CameraPlugin,
             DiagnosticsPlugin,
+            PhysicsPlugin,
             PlayerPlugin,
         ))
         .add_systems(Startup, setup)
