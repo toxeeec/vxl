@@ -4,6 +4,7 @@ use leafwing_input_manager::prelude::*;
 use crate::{
     physics::{PhysicalPosition, Velocity},
     settings,
+    world::CHUNK_WIDTH,
 };
 
 #[derive(Component, Default, Debug)]
@@ -78,7 +79,11 @@ impl PlayerPlugin {
     const VELOCITY: f32 = 4.0;
 
     fn setup(mut commands: Commands) {
-        commands.spawn(PlayerBundle::new(Transform::from_xyz(0.5, 0.0, 5.0)));
+        let half_chunk = CHUNK_WIDTH as f32 / 2.0;
+        commands.spawn(PlayerBundle::new(
+            Transform::from_xyz(half_chunk, half_chunk, 0.0)
+                .looking_at(Vec3::new(half_chunk, half_chunk, half_chunk), Vec3::Y),
+        ));
     }
 
     fn turn_player(mut query: Query<(&mut Transform, &ActionState<CameraAction>), With<Player>>) {
