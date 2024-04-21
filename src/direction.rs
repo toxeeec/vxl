@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use strum::EnumIter;
 
-#[derive(EnumIter, Debug)]
+#[derive(EnumIter, Clone, Copy, Debug)]
 pub(super) enum Direction {
     North,
     East,

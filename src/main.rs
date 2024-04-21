@@ -3,6 +3,7 @@
 use bevy::{prelude::*, window::CursorGrabMode};
 use camera::CameraPlugin;
 use diagnostics::DiagnosticsPlugin;
+use material::ChunkMaterial;
 use physics::PhysicsPlugin;
 use player::PlayerPlugin;
 use world::WorldPlugin;
@@ -10,6 +11,7 @@ use world::WorldPlugin;
 mod camera;
 mod diagnostics;
 mod direction;
+mod material;
 mod physics;
 mod player;
 mod settings;
@@ -21,6 +23,7 @@ fn main() {
             DefaultPlugins,
             CameraPlugin,
             DiagnosticsPlugin,
+            MaterialPlugin::<ChunkMaterial>::default(),
             PhysicsPlugin,
             PlayerPlugin,
             WorldPlugin,

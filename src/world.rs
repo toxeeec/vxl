@@ -8,11 +8,13 @@ use bevy::{
 };
 use strum::IntoEnumIterator;
 
-use crate::direction::Direction;
+use crate::{direction::Direction, material::ChunkMaterial};
 
 pub(super) const CHUNK_WIDTH: usize = 16;
 const CHUNK_HEIGHT: usize = 128;
 const CHUNK_VOLUME: usize = CHUNK_WIDTH * CHUNK_WIDTH * CHUNK_HEIGHT;
+
+const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 
 #[derive(Debug)]
 struct Chunk([bool; CHUNK_VOLUME]);
@@ -54,12 +56,12 @@ impl Plugin for WorldPlugin {
 impl WorldPlugin {
     fn setup(
         mut commands: Commands,
-        mut materials: ResMut<Assets<StandardMaterial>>,
+        mut materials: ResMut<Assets<ChunkMaterial>>,
         mut meshes: ResMut<Assets<Mesh>>,
     ) {
         let chunk = Chunk::default();
 
-        let mut positions = Vec::new();
+        let mut vertices = Vec::new();
         let mut indices = Vec::new();
 
         for (i, block) in chunk.0.into_iter().enumerate() {
@@ -71,12 +73,14 @@ impl WorldPlugin {
             let y = (i / CHUNK_WIDTH / CHUNK_WIDTH) % CHUNK_HEIGHT;
 
             let pos = IVec3::new(x as i32, y as i32, z as i32);
-            for (vertices, dir) in BLOCK_VERTICES.iter().zip(Direction::iter()) {
+            for dir in Direction::iter() {
                 if chunk.block_at(pos + IVec3::from(dir)) {
                     continue;
                 }
-                indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
-                positions.extend(vertices.map(|vertex| vertex + pos.as_vec3()));
+                indices.extend(FACE_INDICES.map(|idx| vertices.len() as u32 + idx));
+                let data =
+                    (dir as u32) << (CHUNK_WIDTH.ilog2() * 2 + CHUNK_HEIGHT.ilog2()) | i as u32;
+                vertices.extend([data; 4]);
             }
         }
 
@@ -84,60 +88,14 @@ impl WorldPlugin {
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::default(),
         )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(ChunkMaterial::ATTRIBUTE_DATA, vertices)
         .with_inserted_indices(Indices::U32(indices));
 
         commands.spawn(MaterialMeshBundle {
-            material: materials.add(StandardMaterial {
-                base_color: Color::RED,
-                unlit: true,
-                ..Default::default()
-            }),
+            material: materials.add(ChunkMaterial {}),
             mesh: meshes.add(mesh),
 
             ..Default::default()
         });
     }
 }
-
-#[rustfmt::skip]
-const BLOCK_VERTICES: [[Vec3; 4]; 6] = [
-    [
-        Vec3 {x: 1.0, y: 1.0, z: 0.0}, // north(-z)
-        Vec3 {x: 0.0, y: 1.0, z: 0.0},
-        Vec3 {x: 0.0, y: 0.0, z: 0.0},
-        Vec3 {x: 1.0, y: 0.0, z: 0.0}
-    ],
-    [
-        Vec3 {x: 1.0, y: 1.0, z: 1.0}, // east(+x)
-        Vec3 {x: 1.0, y: 1.0, z: 0.0},
-        Vec3 {x: 1.0, y: 0.0, z: 0.0},
-        Vec3 {x: 1.0, y: 0.0, z: 1.0}
-    ],
-    [
-        Vec3 {x: 0.0, y: 1.0, z: 1.0}, // south(+z)
-        Vec3 {x: 1.0, y: 1.0, z: 1.0},
-        Vec3 {x: 1.0, y: 0.0, z: 1.0},
-        Vec3 {x: 0.0, y: 0.0, z: 1.0}
-    ],
-    [
-        Vec3 {x: 0.0, y: 1.0, z: 0.0}, // west(-x)
-        Vec3 {x: 0.0, y: 1.0, z: 1.0},
-        Vec3 {x: 0.0, y: 0.0, z: 1.0},
-        Vec3 {x: 0.0, y: 0.0, z: 0.0}
-    ],
-    [
-        Vec3 {x: 0.0, y: 1.0, z: 0.0}, // up(+y)
-        Vec3 {x: 1.0, y: 1.0, z: 0.0},
-        Vec3 {x: 1.0, y: 1.0, z: 1.0},
-        Vec3 {x: 0.0, y: 1.0, z: 1.0}
-    ],
-    [
-        Vec3 {x: 0.0, y: 0.0, z: 1.0}, // down(-y)
-        Vec3 {x: 1.0, y: 0.0, z: 1.0},
-        Vec3 {x: 1.0, y: 0.0, z: 0.0},
-        Vec3 {x: 0.0, y: 0.0, z: 0.0}
-    ]
-];
-
-const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
