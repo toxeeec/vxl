@@ -6,6 +6,9 @@ use bevy::{
         render_asset::RenderAssetUsages,
     },
 };
+use strum::IntoEnumIterator;
+
+use crate::direction::Direction;
 
 pub(super) const CHUNK_WIDTH: usize = 16;
 const CHUNK_HEIGHT: usize = 128;
@@ -16,6 +19,20 @@ struct Chunk([bool; CHUNK_VOLUME]);
 
 #[derive(Debug)]
 pub(super) struct WorldPlugin;
+
+impl Chunk {
+    fn block_at(&self, pos: IVec3) -> bool {
+        if pos.min_element() < 0
+            || pos.xz().max_element() >= CHUNK_WIDTH as i32
+            || pos.y >= CHUNK_HEIGHT as i32
+        {
+            return false;
+        }
+
+        let i = pos.x + pos.y * (CHUNK_WIDTH * CHUNK_WIDTH) as i32 + pos.z * CHUNK_WIDTH as i32;
+        self.0[i as usize]
+    }
+}
 
 impl Default for Chunk {
     fn default() -> Self {
@@ -54,7 +71,10 @@ impl WorldPlugin {
             let y = (i / CHUNK_WIDTH / CHUNK_WIDTH) % CHUNK_HEIGHT;
 
             let pos = IVec3::new(x as i32, y as i32, z as i32);
-            for vertices in BLOCK_VERTICES.iter() {
+            for (vertices, dir) in BLOCK_VERTICES.iter().zip(Direction::iter()) {
+                if chunk.block_at(pos + IVec3::from(dir)) {
+                    continue;
+                }
                 indices.extend(FACE_INDICES.map(|idx| positions.len() as u32 + idx));
                 positions.extend(vertices.map(|vertex| vertex + pos.as_vec3()));
             }

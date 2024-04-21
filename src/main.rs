@@ -9,6 +9,7 @@ use world::WorldPlugin;
 
 mod camera;
 mod diagnostics;
+mod direction;
 mod physics;
 mod player;
 mod settings;
