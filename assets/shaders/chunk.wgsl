@@ -11,6 +11,7 @@ struct Vertex {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
+	@location(0) brightness: f32,
 };
 
 @vertex
@@ -23,6 +24,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
         array<vec3u, 4>(vec3u(0, 1, 0), vec3u(1, 1, 0), vec3u(1, 1, 1), vec3u(0, 1, 1)), // up    (-y)
         array<vec3u, 4>(vec3u(0, 0, 1), vec3u(1, 0, 1), vec3u(1, 0, 0), vec3u(0, 0, 0)), // down  (+y)
     );
+
+    var brightness_levels = array<f32, 6>(0.8, 0.6, 0.8, 0.6, 1.0, 0.5);
 
     var out: VertexOutput;
 
@@ -42,11 +45,16 @@ fn vertex(vertex: Vertex) -> VertexOutput {
             1.0
         ),
     );
+    out.brightness = brightness_levels[direction];
 
     return out;
 }
 
+struct FragmentInput {
+	@location(0) brightness: f32,
+}
+
 @fragment
-fn fragment() -> @location(0) vec4f {
-    return vec4(1.0, 0.0, 0.0, 1.0);
+fn fragment(input: FragmentInput) -> @location(0) vec4f {
+    return vec4(1.0, 0.0, 0.0, 1.0) * input.brightness;
 }
