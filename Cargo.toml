@@ -11,7 +11,7 @@ strum = { version = "0.26.2", features = ["derive"] }
 [dependencies.bevy]
 version = "0.13"
 default-features = false
-features = ["bevy_pbr", "bevy_ui", "bevy_winit", "default_font", "multi-threaded"]
+features = ["bevy_pbr", "bevy_ui", "bevy_winit", "default_font", "multi-threaded", "png"]
 
 [profile.dev]
 opt-level = 1
