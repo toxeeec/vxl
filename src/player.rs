@@ -80,10 +80,11 @@ impl PlayerPlugin {
 
     fn setup(mut commands: Commands) {
         let half_chunk = CHUNK_WIDTH as f32 / 2.0;
-        commands.spawn(PlayerBundle::new(
-            Transform::from_xyz(half_chunk, half_chunk, 0.0)
-                .looking_at(Vec3::new(half_chunk, half_chunk, half_chunk), Vec3::Y),
-        ));
+        commands.spawn(PlayerBundle::new(Transform::from_xyz(
+            half_chunk,
+            CHUNK_WIDTH as f32,
+            half_chunk,
+        )));
     }
 
     fn turn_player(mut query: Query<(&mut Transform, &ActionState<CameraAction>), With<Player>>) {

@@ -11,10 +11,10 @@ use bevy::{
     },
 };
 
-// xxxxxxxxxxxx | xx       | xxx       | xxxxx | xxxxx | xxxxx
-//              | block id | direction | y     | z     | x
+// xxxxxxxxxxxx | xx       | xxx       | xxxxxxx | xxxx | xxxx
+//              | block id | direction | y       | z    | x
 pub(super) const ATTRIBUTE_DATA: MeshVertexAttribute =
-    MeshVertexAttribute::new("Data", 1000000, VertexFormat::Uint32);
+    MeshVertexAttribute::new("Data", 1000000, VertexFormat::Sint32);
 
 #[derive(Resource, Debug)]
 struct LoadingTexture {
@@ -27,13 +27,21 @@ pub(super) struct ChunkMaterial {
     #[texture(0, dimension = "2d_array")]
     #[sampler(1)]
     texture: Handle<Image>,
+    #[uniform(2)]
+    offset: IVec2,
 }
 
 #[derive(Resource, Default, Debug)]
-pub(super) struct ChunkTexture(pub(super) Handle<ChunkMaterial>);
+pub(super) struct ChunkTexture(pub(super) Handle<Image>);
 
 #[derive(Debug)]
 pub(super) struct ChunkMaterialPlugin;
+
+impl ChunkMaterial {
+    pub(super) fn new(offset: IVec2, texture: Handle<Image>) -> Self {
+        Self { offset, texture }
+    }
+}
 
 impl Material for ChunkMaterial {
     fn vertex_shader() -> ShaderRef {
@@ -57,7 +65,7 @@ impl Material for ChunkMaterial {
 }
 
 impl ChunkTexture {
-    pub(super) fn new(handle: Handle<ChunkMaterial>) -> Self {
+    pub(super) fn new(handle: Handle<Image>) -> Self {
         Self(handle)
     }
 }
@@ -85,7 +93,6 @@ impl ChunkMaterialPlugin {
         asset_server: Res<AssetServer>,
         mut loading_texture: ResMut<LoadingTexture>,
         mut images: ResMut<Assets<Image>>,
-        mut materials: ResMut<Assets<ChunkMaterial>>,
     ) {
         if loading_texture.is_loaded
             || asset_server.load_state(loading_texture.handle.clone()) != LoadState::Loaded
@@ -121,8 +128,6 @@ impl ChunkMaterialPlugin {
             depth_or_array_layers: layers as u32,
         });
 
-        commands.insert_resource(ChunkTexture::new(materials.add(ChunkMaterial {
-            texture: loading_texture.handle.clone(),
-        })));
+        commands.insert_resource(ChunkTexture::new(loading_texture.handle.clone()));
     }
 }
