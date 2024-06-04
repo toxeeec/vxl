@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 use crate::{
-    physics::{PhysicalPosition, Velocity},
+    physics::{MovementBundle, PhysicalPosition, SetAccelerationEvent},
     settings,
     world::CHUNK_WIDTH,
 };
@@ -33,7 +33,7 @@ struct PlayerBundle {
     camera_action_manager: InputManagerBundle<CameraAction>,
     movement_action_manager: InputManagerBundle<MovementAction>,
     physical_position: PhysicalPosition,
-    velocity: Velocity,
+    movement_bundle: MovementBundle,
 }
 
 #[derive(Debug)]
@@ -76,7 +76,7 @@ impl Plugin for PlayerPlugin {
 }
 
 impl PlayerPlugin {
-    const VELOCITY: f32 = 4.0;
+    const ACCELERATION: f32 = 0.35;
 
     fn setup(mut commands: Commands) {
         let half_chunk = CHUNK_WIDTH as f32 / 2.0;
@@ -101,9 +101,10 @@ impl PlayerPlugin {
     }
 
     fn handle_player_movement(
-        mut query: Query<(&mut Velocity, &Transform, &ActionState<MovementAction>), With<Player>>,
+        mut query: Query<(Entity, &Transform, &ActionState<MovementAction>), With<Player>>,
+        mut events: EventWriter<SetAccelerationEvent>,
     ) {
-        let (mut velocity, transform, action_state) = query.single_mut();
+        let (entity, transform, action_state) = query.single_mut();
 
         let mut direction = Vec3::ZERO;
 
@@ -126,9 +127,9 @@ impl PlayerPlugin {
             direction += *transform.down();
         }
 
-        let new_velocity = Velocity::new(direction.normalize_or_zero() * Self::VELOCITY);
-        if new_velocity != *velocity {
-            *velocity = new_velocity;
-        }
+        events.send(SetAccelerationEvent::new(
+            entity,
+            direction.normalize_or_zero() * Self::ACCELERATION,
+        ));
     }
 }

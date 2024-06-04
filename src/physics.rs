@@ -8,8 +8,23 @@ pub(super) struct PhysicalPosition {
     previous: Option<Vec3>,
 }
 
-#[derive(Component, Clone, Copy, PartialEq, Default, Debug)]
+#[derive(Component, Clone, Copy, Default, Debug)]
 pub(super) struct Velocity(Vec3);
+
+#[derive(Component, Clone, Copy, PartialEq, Default, Debug)]
+pub(super) struct Acceleration(Vec3);
+
+#[derive(Event, Debug)]
+pub(super) struct SetAccelerationEvent {
+    entity: Entity,
+    acceleration: Acceleration,
+}
+
+#[derive(Bundle, Default, Debug)]
+pub(super) struct MovementBundle {
+    velocity: Velocity,
+    acceleration: Acceleration,
+}
 
 #[derive(Debug)]
 pub(super) struct PhysicsPlugin;
@@ -31,10 +46,6 @@ impl From<Transform> for PhysicalPosition {
 }
 
 impl Velocity {
-    pub(super) fn new(velocity: Vec3) -> Self {
-        Self(velocity)
-    }
-
     pub(super) fn magnitude(self) -> f32 {
         self.0.length()
     }
@@ -55,20 +66,89 @@ impl AddAssign<Velocity> for Vec3 {
     }
 }
 
+impl From<Vec3> for Acceleration {
+    #[inline]
+    fn from(acceleration: Vec3) -> Self {
+        Self(acceleration)
+    }
+}
+
+impl SetAccelerationEvent {
+    pub(super) fn new(entity: Entity, acceleration: impl Into<Acceleration>) -> Self {
+        Self {
+            entity,
+            acceleration: acceleration.into(),
+        }
+    }
+}
+
 impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, Self::apply_velocities)
+        app.add_event::<SetAccelerationEvent>()
+            .add_systems(
+                FixedUpdate,
+                (
+                    Self::set_accelerations,
+                    Self::remove_negligible_velocities,
+                    Self::apply_accelerations,
+                    Self::apply_velocities,
+                    Self::apply_drag,
+                )
+                    .chain(),
+            )
             .add_systems(Update, Self::interpolate_positions);
     }
 }
 
 impl PhysicsPlugin {
+    const DRAG: f32 = 0.03;
+
+    fn set_accelerations(
+        mut events: EventReader<SetAccelerationEvent>,
+        mut query: Query<&mut Acceleration>,
+    ) {
+        for ev in events.read() {
+            if let Ok(mut acc) = query.get_mut(ev.entity) {
+                if ev.acceleration != *acc {
+                    *acc = ev.acceleration;
+                }
+            }
+        }
+    }
+
+    fn remove_negligible_velocities(mut query: Query<&mut Velocity>) {
+        const MIN_VELOCITY: f32 = 0.003;
+        for mut vel in &mut query {
+            if vel.0.x.abs() < MIN_VELOCITY {
+                vel.0.x = 0.0;
+            }
+            if vel.0.y.abs() < MIN_VELOCITY {
+                vel.0.y = 0.0;
+            }
+            if vel.0.z.abs() < MIN_VELOCITY {
+                vel.0.z = 0.0;
+            }
+        }
+    }
+
+    fn apply_accelerations(mut query: Query<(&mut Velocity, &Acceleration)>) {
+        for (mut vel, acc) in &mut query {
+            vel.0 += acc.0;
+        }
+    }
+
     fn apply_velocities(mut query: Query<(&Velocity, &mut PhysicalPosition)>, time: Res<Time>) {
         let delta_seconds = time.delta_seconds();
 
         for (velocity, mut position) in query.iter_mut() {
             position.previous = Some(position.current);
             position.current += *velocity * delta_seconds;
+        }
+    }
+
+    pub(super) fn apply_drag(mut query: Query<&mut Velocity>) {
+        for mut vel in &mut query {
+            vel.0 *= 1.0 - Self::DRAG;
         }
     }
 
