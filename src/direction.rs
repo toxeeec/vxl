@@ -12,6 +12,20 @@ pub(super) enum Direction {
 }
 
 #[rustfmt::skip]
+impl From<Direction> for IVec2 {
+    #[inline]
+    fn from(dir: Direction) -> Self {
+        match dir {
+            Direction::North                => IVec2::new( 0, -1),
+            Direction::East                 => IVec2::new( 1,  0),
+            Direction::South                => IVec2::new( 0,  1),
+            Direction::West                 => IVec2::new(-1,  0),
+            Direction::Up | Direction::Down => IVec2::new( 0,  0),
+        }
+    }
+}
+
+#[rustfmt::skip]
 impl From<Direction> for IVec3 {
     #[inline]
     fn from(dir: Direction) -> Self {

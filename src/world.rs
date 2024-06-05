@@ -8,7 +8,8 @@ use bevy::{
         mesh::{Indices, PrimitiveTopology},
         render_asset::RenderAssetUsages,
     },
-    utils::HashMap,
+    tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
+    utils::{HashMap, HashSet},
 };
 use strum::IntoEnumIterator;
 
@@ -28,8 +29,14 @@ const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
 #[derive(Debug)]
 struct Chunk([BlockId; CHUNK_VOLUME]);
 
-#[derive(Resource, Debug)]
+#[derive(Resource, Default, Debug)]
 struct Chunks(HashMap<IVec2, Chunk>);
+
+#[derive(Resource, Default, Debug)]
+struct DirtyChunks(HashSet<IVec2>);
+
+#[derive(Component, Debug)]
+struct ChunkSpawningTask(Task<(IVec2, Chunk)>);
 
 #[derive(Debug)]
 pub(super) struct WorldPlugin;
@@ -80,39 +87,76 @@ impl Chunks {
     }
 }
 
-impl Default for Chunks {
-    fn default() -> Self {
-        let mut chunks = HashMap::new();
+impl Plugin for WorldPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<Chunks>()
+            .init_resource::<DirtyChunks>()
+            .add_systems(Startup, Self::setup)
+            .add_systems(
+                Update,
+                (
+                    Self::handle_spawning_tasks,
+                    Self::mesh_chunks.run_if(resource_exists::<ChunkTexture>),
+                )
+                    .chain(),
+            );
+    }
+}
+
+impl WorldPlugin {
+    fn setup(mut commands: Commands) {
+        let thread_pool = AsyncComputeTaskPool::get();
+
         for x in -(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32 {
             for z in -(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32 {
                 let offset = IVec2::new(x, z);
                 let aabb = Aabb2d::new(offset.as_vec2(), Vec2::splat(0.5));
                 let distance = Vec2::ZERO.distance(aabb.closest_point(Vec2::ZERO));
-                if distance <= RENDER_DISTANCE as f32 {
-                    chunks.insert(offset, Chunk::default());
+                if distance > RENDER_DISTANCE as f32 {
+                    continue;
+                }
+                let task = thread_pool.spawn(async move { (offset, Chunk::default()) });
+                commands.spawn(ChunkSpawningTask(task));
+            }
+        }
+    }
+
+    fn handle_spawning_tasks(
+        mut commands: Commands,
+        mut query: Query<(Entity, &mut ChunkSpawningTask)>,
+        mut chunks: ResMut<Chunks>,
+        mut dirty: ResMut<DirtyChunks>,
+    ) {
+        for (entity, mut task) in &mut query {
+            if let Some((offset, chunk)) = block_on(future::poll_once(&mut task.0)) {
+                commands.entity(entity).despawn();
+                chunks.0.insert(offset, chunk);
+                dirty.0.insert(offset);
+                for dir in [
+                    Direction::North,
+                    Direction::East,
+                    Direction::South,
+                    Direction::West,
+                ] {
+                    let neighbor_offset = offset + IVec2::from(dir);
+                    if chunks.0.contains_key(&neighbor_offset) {
+                        dirty.0.insert(neighbor_offset);
+                    }
                 }
             }
         }
-        Self(chunks)
     }
-}
 
-impl Plugin for WorldPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<Chunks>()
-            .add_systems(Update, Self::setup.run_if(resource_added::<ChunkTexture>));
-    }
-}
-
-impl WorldPlugin {
-    fn setup(
+    fn mesh_chunks(
         mut commands: Commands,
-        chunks: Res<Chunks>,
         texture: Res<ChunkTexture>,
+        chunks: Res<Chunks>,
+        mut dirty: ResMut<DirtyChunks>,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<ChunkMaterial>>,
     ) {
-        for (offset, chunk) in chunks.0.iter() {
+        for offset in dirty.0.iter() {
+            let chunk = chunks.0.get(offset).unwrap();
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
 
@@ -155,5 +199,7 @@ impl WorldPlugin {
                 ..Default::default()
             });
         }
+
+        dirty.0.clear();
     }
 }
