@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use strum::EnumIter;
+use strum::{EnumCount, EnumIter, VariantArray};
 
-#[derive(EnumIter, Clone, Copy, Debug)]
+#[derive(EnumIter, EnumCount, VariantArray, Clone, Copy, Debug)]
 pub(super) enum Direction {
     North,
     East,
@@ -21,6 +21,21 @@ impl From<Direction> for IVec2 {
             Direction::South                => IVec2::new( 0,  1),
             Direction::West                 => IVec2::new(-1,  0),
             Direction::Up | Direction::Down => IVec2::new( 0,  0),
+        }
+    }
+}
+
+#[rustfmt::skip]
+impl TryFrom<IVec2> for Direction {
+    type Error = &'static str;
+    #[inline]
+    fn try_from(dir: IVec2) -> Result<Self, Self::Error> {
+        match dir {
+            IVec2 { x:  0, y: -1 } => Ok(Direction::North),
+            IVec2 { x:  1, y:  0 } => Ok(Direction::East),
+            IVec2 { x:  0, y:  1 } => Ok(Direction::South),
+            IVec2 { x: -1, y:  0 } => Ok(Direction::West),
+            _ => Err("Invalid direction"),
         }
     }
 }
