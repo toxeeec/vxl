@@ -20,6 +20,9 @@ pub(super) struct SetAccelerationEvent {
     acceleration: Acceleration,
 }
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct PhysicsSet;
+
 #[derive(Bundle, Default, Debug)]
 pub(super) struct MovementBundle {
     velocity: Velocity,
@@ -32,6 +35,10 @@ pub(super) struct PhysicsPlugin;
 impl PhysicalPosition {
     pub(super) fn current(&self) -> Vec3 {
         self.current
+    }
+
+    pub(super) fn previous(&self) -> Option<Vec3> {
+        self.previous
     }
 }
 
@@ -88,13 +95,13 @@ impl Plugin for PhysicsPlugin {
             .add_systems(
                 FixedUpdate,
                 (
-                    Self::set_accelerations,
-                    Self::remove_negligible_velocities,
+                    (Self::set_accelerations, Self::remove_negligible_velocities),
                     Self::apply_accelerations,
                     Self::apply_velocities,
                     Self::apply_drag,
                 )
-                    .chain(),
+                    .chain()
+                    .in_set(PhysicsSet),
             )
             .add_systems(Update, Self::interpolate_positions);
     }

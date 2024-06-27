@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 array-init = "2.1.0"
+itertools = "0.13.0"
 leafwing-input-manager = "0.13"
 strum = { version = "0.26.2", features = ["derive"] }
 
