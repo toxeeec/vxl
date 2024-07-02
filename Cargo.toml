@@ -4,15 +4,28 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.86"
 array-init = "2.1.0"
 itertools = "0.13.0"
 leafwing-input-manager = "0.13"
+noise = "0.9"
+serde = "1.0.203"
+splines = { version = "4.3.1", features = ["glam"] }
 strum = { version = "0.26.2", features = ["derive"] }
+toml = "0.8.14"
 
 [dependencies.bevy]
 version = "0.13"
 default-features = false
-features = ["bevy_pbr", "bevy_ui", "bevy_winit", "default_font", "multi-threaded", "png"]
+features = [
+  "bevy_pbr",
+  "bevy_ui",
+  "bevy_winit",
+  "default_font",
+  "multi-threaded",
+  "png",
+  "asset_processor",
+]
 
 [profile.dev]
 opt-level = 1

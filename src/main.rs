@@ -6,6 +6,7 @@ use diagnostics::DiagnosticsPlugin;
 use physics::PhysicsPlugin;
 use player::PlayerPlugin;
 use texture::ChunkMaterialPlugin;
+use toml_asset::{TomlAsset, TomlLoader};
 use world::WorldPlugin;
 
 mod block;
@@ -16,6 +17,7 @@ mod physics;
 mod player;
 mod settings;
 mod texture;
+mod toml_asset;
 mod world;
 
 fn main() {
@@ -29,6 +31,8 @@ fn main() {
             PlayerPlugin,
             WorldPlugin,
         ))
+        .init_asset::<TomlAsset>()
+        .init_asset_loader::<TomlLoader>()
         .insert_resource(Msaa::Off)
         .add_systems(Startup, setup)
         .run();

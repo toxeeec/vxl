@@ -3,7 +3,7 @@ use leafwing_input_manager::prelude::*;
 
 use crate::{
     physics::{MovementBundle, PhysicalPosition, PhysicsSet, SetAccelerationEvent},
-    settings,
+    settings::{self},
     world::CHUNK_WIDTH,
 };
 
@@ -100,12 +100,10 @@ impl Plugin for PlayerPlugin {
 }
 
 impl PlayerPlugin {
-    const ACCELERATION: f32 = 0.35;
+    const ACCELERATION: f32 = 5.35;
 
     fn setup(mut commands: Commands, mut events: EventWriter<PlayerSpawnEvent>) {
-        let half_chunk = CHUNK_WIDTH as f32 / 2.0;
-
-        let pos = Vec3::new(half_chunk, CHUNK_WIDTH as f32, half_chunk);
+        let pos = Vec3::new(0.0, 200.0, 0.0);
         commands.spawn(PlayerBundle::new(Transform::from_translation(pos)));
         events.send(PlayerSpawnEvent::new(
             pos.xz()

@@ -2,6 +2,7 @@
 
 const block_grass = 1u;
 const block_dirt = 2u;
+const block_stone = 3u;
 
 const direction_north = 0u;
 const direction_east = 1u;
@@ -11,7 +12,7 @@ const direction_up = 4u;
 const direction_down = 5u;
 
 const chunk_width = 16i;
-const chunk_height = 128i;
+const chunk_height = 256i;
 
 @group(2) @binding(0) var tex: texture_2d_array<f32>;
 @group(2) @binding(1) var smp: sampler;
@@ -40,6 +41,7 @@ fn texture_layer(block_id: u32, direction: u32) -> u32 {
             }
         }
         case block_dirt: { return 2u; }
+        case block_stone: { return 3u; }
         default: { return u32(-1i); }
     }
 }
@@ -62,8 +64,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     let x = vertex.data & (chunk_width - 1);
     let z = (vertex.data >> u32(log2(f32(chunk_width)))) & (chunk_width - 1);
     let y = (vertex.data >> u32(log2(f32(chunk_width)) * 2)) & (chunk_height - 1);
-    let direction = (u32(vertex.data) >> u32(log2(f32(chunk_width)) * 2 + log2(f32(chunk_height)))) & 7;
-    let block_id = (u32(vertex.data) >> (u32(log2(f32(chunk_width)) * 2 + log2(f32(chunk_height))) + 3)) & 3;
+    let direction = u32((vertex.data >> u32(log2(f32(chunk_width)) * 2 + log2(f32(chunk_height)))) & 7);
+    let block_id = u32((vertex.data >> u32(log2(f32(chunk_width)) * 2 + log2(f32(chunk_height))) + 3) & 3);
 
     let vertex_idx = vertex.vertex_index & 3;
     let vertex_pos = block_vertices[direction][vertex_idx];
