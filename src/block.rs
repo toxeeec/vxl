@@ -1,8 +1,9 @@
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum BlockId {
     Air,
     Grass,
     Dirt,
+    Stone,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -18,6 +19,7 @@ impl BlockId {
             BlockId::Air => Transparency::Transparent,
             BlockId::Grass => Transparency::Opaque,
             BlockId::Dirt => Transparency::Opaque,
+            BlockId::Stone => Transparency::Opaque,
         }
     }
 

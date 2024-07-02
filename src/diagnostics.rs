@@ -1,8 +1,10 @@
 use bevy::{diagnostic::*, prelude::*};
+use noise::NoiseFn;
 
 use crate::{
     physics::{PhysicalPosition, Velocity},
     player::Player,
+    world::{Noise, WorldgenParams},
 };
 
 #[derive(Component, Debug)]
@@ -18,10 +20,15 @@ impl Plugin for DiagnosticsPlugin {
             .register_diagnostic(Diagnostic::new(Self::POS_Y))
             .register_diagnostic(Diagnostic::new(Self::POS_Z))
             .register_diagnostic(Diagnostic::new(Self::BLOCKS_PER_SECOND))
+            .register_diagnostic(Diagnostic::new(Self::HILLINESS))
             .add_systems(Startup, Self::setup)
             .add_systems(
                 FixedUpdate,
-                (Self::update_position, Self::update_blocks_per_second),
+                (
+                    Self::update_position,
+                    Self::update_blocks_per_second,
+                    Self::update_hilliness.run_if(resource_exists::<WorldgenParams>),
+                ),
             )
             .add_systems(Update, Self::display_diagnostics);
     }
@@ -32,6 +39,7 @@ impl DiagnosticsPlugin {
     const POS_Y: DiagnosticPath = DiagnosticPath::const_new("pos_y");
     const POS_Z: DiagnosticPath = DiagnosticPath::const_new("pos_z");
     const BLOCKS_PER_SECOND: DiagnosticPath = DiagnosticPath::const_new("blocks_per_second");
+    const HILLINESS: DiagnosticPath = DiagnosticPath::const_new("hilliness");
 
     fn setup(mut commands: Commands) {
         let text_style = TextStyle {
@@ -46,6 +54,8 @@ impl DiagnosticsPlugin {
                 TextSection::new("X/Y/Z: ", text_style.clone()),
                 TextSection::from_style(text_style.clone()),
                 TextSection::new("B/s: ", text_style.clone()),
+                TextSection::from_style(text_style.clone()),
+                TextSection::new("Hilliness: ", text_style.clone()),
                 TextSection::from_style(text_style.clone()),
             ])
             .with_style(Style {
@@ -74,6 +84,16 @@ impl DiagnosticsPlugin {
     ) {
         let vel = query.single();
         diagnostics.add_measurement(&Self::BLOCKS_PER_SECOND, || vel.magnitude() as f64);
+    }
+
+    fn update_hilliness(
+        query: Query<&PhysicalPosition, With<Player>>,
+        noise: Res<Noise>,
+        mut diagnostics: Diagnostics,
+    ) {
+        let pos = query.single().current().xz().round().as_dvec2().to_array();
+        let hilliness = (noise.hilliness().get(pos) + 1.0) / 2.0;
+        diagnostics.add_measurement(&Self::HILLINESS, || hilliness);
     }
 
     fn display_diagnostics(
@@ -112,8 +132,15 @@ impl DiagnosticsPlugin {
             .value()
             .unwrap_or_default();
 
+        let hilliness = diagnostics
+            .get(&Self::HILLINESS)
+            .unwrap()
+            .value()
+            .unwrap_or_default();
+
         text.sections[1].value = format!("{fps:.0}\n");
         text.sections[3].value = format!("{pos_x:.3}/{pos_y:.3}/{pos_z:.3}\n");
         text.sections[5].value = format!("{bps:.4}\n");
+        text.sections[7].value = format!("{hilliness:.4}\n");
     }
 }
