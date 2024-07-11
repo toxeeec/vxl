@@ -32,4 +32,14 @@ impl BlockId {
     pub(super) fn is_opaque(self) -> bool {
         self.transparency() == Transparency::Opaque
     }
+
+    #[inline]
+    pub(super) fn is_solid(self) -> bool {
+        match self {
+            BlockId::Air => false,
+            BlockId::Grass => true,
+            BlockId::Dirt => true,
+            BlockId::Stone => true,
+        }
+    }
 }

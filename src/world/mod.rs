@@ -24,7 +24,7 @@ const CHUNK_VOLUME: usize = CHUNK_WIDTH * CHUNK_WIDTH * CHUNK_HEIGHT;
 struct Chunk([BlockId; CHUNK_VOLUME]);
 
 #[derive(Resource, Default, Debug)]
-struct Chunks(HashMap<IVec2, Arc<Chunk>>);
+pub(super) struct Chunks(HashMap<IVec2, Arc<Chunk>>);
 
 #[derive(Resource, Default, Debug)]
 struct DirtyChunks(HashSet<IVec2>);
@@ -76,6 +76,21 @@ impl Chunk {
 }
 
 impl Chunks {
+    pub(super) fn block_at(&self, pos: IVec3) -> Option<BlockId> {
+        let offset = pos.xz().div_euclid(IVec2::splat(CHUNK_WIDTH as i32));
+
+        self.0.get(&offset).map(|chunk| {
+            let local_pos = pos
+                - IVec3::new(
+                    pos.x.div_euclid(CHUNK_WIDTH as i32),
+                    0,
+                    pos.z.div_euclid(CHUNK_WIDTH as i32),
+                ) * CHUNK_WIDTH as i32;
+
+            chunk.block_at(&self.get_neighbors(offset), local_pos)
+        })
+    }
+
     fn get_neighbors(&self, offset: IVec2) -> Neighbors {
         array_init(|i| {
             let dir = [

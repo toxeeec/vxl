@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 use crate::{
-    physics::{MovementBundle, PhysicalPosition, PhysicsSet, SetAccelerationEvent},
-    settings::{self},
+    physics::{MovementBundle, PhysicalPosition, PhysicsSet, RigidBody, SetAccelerationEvent},
+    settings,
     world::CHUNK_WIDTH,
 };
 
@@ -44,6 +44,7 @@ struct PlayerBundle {
     movement_action_manager: InputManagerBundle<MovementAction>,
     physical_position: PhysicalPosition,
     movement_bundle: MovementBundle,
+    rigid_body: RigidBody,
 }
 
 #[derive(Debug)]
@@ -77,6 +78,7 @@ impl PlayerBundle {
                 (MovementAction::Down, KeyCode::ShiftLeft),
             ])),
             physical_position: transform.into(),
+            rigid_body: RigidBody::new(0.6, 1.8),
             ..Default::default()
         }
     }
