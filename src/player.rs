@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 use crate::{
-    physics::{MovementBundle, PhysicalPosition, PhysicsSet, RigidBody, SetAccelerationEvent},
+    physics::{Acceleration, MovementBundle, PhysicalPosition, PhysicsSet, RigidBody},
     settings,
     world::CHUNK_WIDTH,
 };
@@ -128,10 +128,12 @@ impl PlayerPlugin {
     }
 
     fn handle_player_movement(
-        mut query: Query<(Entity, &Transform, &ActionState<MovementAction>), With<Player>>,
-        mut events: EventWriter<SetAccelerationEvent>,
+        mut query: Query<
+            (&Transform, &ActionState<MovementAction>, &mut Acceleration),
+            With<Player>,
+        >,
     ) {
-        let (entity, transform, action_state) = query.single_mut();
+        let (transform, action_state, mut acceleration) = query.single_mut();
 
         let mut direction = Vec3::ZERO;
 
@@ -154,10 +156,7 @@ impl PlayerPlugin {
             direction += *transform.down();
         }
 
-        events.send(SetAccelerationEvent::new(
-            entity,
-            direction.normalize_or_zero() * Self::ACCELERATION,
-        ));
+        *acceleration = Acceleration::new(direction.normalize_or_zero() * Self::ACCELERATION);
     }
 
     fn player_chunk_move(

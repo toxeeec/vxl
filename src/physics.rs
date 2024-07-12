@@ -20,12 +20,6 @@ pub(super) struct Velocity(Vec3);
 pub(super) struct Acceleration(Vec3);
 
 #[derive(Event, Debug)]
-pub(super) struct SetAccelerationEvent {
-    entity: Entity,
-    acceleration: Acceleration,
-}
-
-#[derive(Event, Debug)]
 pub(super) struct CollisionEvent {
     entity: Entity,
     x: Option<f32>,
@@ -92,19 +86,16 @@ impl AddAssign<Velocity> for Vec3 {
     }
 }
 
-impl From<Vec3> for Acceleration {
-    #[inline]
-    fn from(acceleration: Vec3) -> Self {
+impl Acceleration {
+    pub(super) fn new(acceleration: Vec3) -> Self {
         Self(acceleration)
     }
 }
 
-impl SetAccelerationEvent {
-    pub(super) fn new(entity: Entity, acceleration: impl Into<Acceleration>) -> Self {
-        Self {
-            entity,
-            acceleration: acceleration.into(),
-        }
+impl From<Vec3> for Acceleration {
+    #[inline]
+    fn from(acceleration: Vec3) -> Self {
+        Self(acceleration)
     }
 }
 
@@ -116,12 +107,11 @@ impl CollisionEvent {
 
 impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<SetAccelerationEvent>()
-            .add_event::<CollisionEvent>()
+        app.add_event::<CollisionEvent>()
             .add_systems(
                 FixedUpdate,
                 (
-                    (Self::set_accelerations, Self::remove_negligible_velocities),
+                    Self::remove_negligible_velocities,
                     Self::apply_accelerations,
                     Self::check_for_collisions,
                     Self::apply_velocities,
@@ -136,19 +126,6 @@ impl Plugin for PhysicsPlugin {
 
 impl PhysicsPlugin {
     const DRAG: f32 = 0.03;
-
-    fn set_accelerations(
-        mut events: EventReader<SetAccelerationEvent>,
-        mut query: Query<&mut Acceleration>,
-    ) {
-        for ev in events.read() {
-            if let Ok(mut acc) = query.get_mut(ev.entity) {
-                if ev.acceleration != *acc {
-                    *acc = ev.acceleration;
-                }
-            }
-        }
-    }
 
     fn remove_negligible_velocities(mut query: Query<&mut Velocity>) {
         const MIN_VELOCITY: f32 = 0.003;
