@@ -151,7 +151,7 @@ impl WorldPlugin {
         mut toml_assets: ResMut<Assets<TomlAsset>>,
     ) {
         if loading_params.is_loaded
-            || asset_server.load_state(loading_params.handle.clone()) != LoadState::Loaded
+            || asset_server.load_state(loading_params.handle.id()) != LoadState::Loaded
         {
             return;
         }

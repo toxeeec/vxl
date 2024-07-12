@@ -3,7 +3,7 @@ use bevy::{
     pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
     render::{
-        mesh::{MeshVertexAttribute, MeshVertexBufferLayout},
+        mesh::{MeshVertexAttribute, MeshVertexBufferLayoutRef},
         render_resource::{
             AsBindGroup, Extent3d, RenderPipelineDescriptor, ShaderRef,
             SpecializedMeshPipelineError, VertexFormat,
@@ -55,10 +55,12 @@ impl Material for ChunkMaterial {
     fn specialize(
         _pipeline: &MaterialPipeline<Self>,
         descriptor: &mut RenderPipelineDescriptor,
-        layout: &MeshVertexBufferLayout,
+        layout: &MeshVertexBufferLayoutRef,
         _key: MaterialPipelineKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
-        let vertex_layout = layout.get_layout(&[ATTRIBUTE_DATA.at_shader_location(0)])?;
+        let vertex_layout = layout
+            .0
+            .get_layout(&[ATTRIBUTE_DATA.at_shader_location(0)])?;
         descriptor.vertex.buffers = vec![vertex_layout];
         Ok(())
     }
@@ -95,7 +97,7 @@ impl ChunkMaterialPlugin {
         mut images: ResMut<Assets<Image>>,
     ) {
         if loading_texture.is_loaded
-            || asset_server.load_state(loading_texture.handle.clone()) != LoadState::Loaded
+            || asset_server.load_state(loading_texture.handle.id()) != LoadState::Loaded
         {
             return;
         }

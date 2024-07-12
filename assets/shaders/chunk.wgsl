@@ -1,4 +1,4 @@
-#import bevy_pbr::mesh_functions::{get_model_matrix, mesh_position_local_to_clip}
+#import bevy_pbr::mesh_functions::{get_world_from_local, mesh_position_local_to_clip}
 
 const block_grass = 1u;
 const block_dirt = 2u;
@@ -71,7 +71,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     let vertex_pos = block_vertices[direction][vertex_idx];
 
     out.clip_position = mesh_position_local_to_clip(
-        get_model_matrix(vertex.instance_index),
+        get_world_from_local(vertex.instance_index),
         vec4f(
             f32(x + vertex_pos.x + offset.x * chunk_width),
             f32(y + vertex_pos.y),

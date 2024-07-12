@@ -286,8 +286,8 @@ fn collision_at<const AXIS: char>(
 
     *pos += displacement;
 
-    let min = body_aabb.min + displacement.min(Vec3::ZERO);
-    let max = body_aabb.max + displacement.max(Vec3::ZERO);
+    let min = Vec3::from(body_aabb.min) + displacement.min(Vec3::ZERO);
+    let max = Vec3::from(body_aabb.max) + displacement.max(Vec3::ZERO);
 
     let mut collision_dist = vel.abs();
     let mut at = None;
