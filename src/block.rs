@@ -13,7 +13,6 @@ enum Transparency {
 }
 
 impl BlockId {
-    #[inline]
     fn transparency(self) -> Transparency {
         match self {
             BlockId::Air => Transparency::Transparent,
@@ -23,17 +22,14 @@ impl BlockId {
         }
     }
 
-    #[inline]
     pub(super) fn is_transparent(self) -> bool {
         self.transparency() == Transparency::Transparent
     }
 
-    #[inline]
     pub(super) fn is_opaque(self) -> bool {
         self.transparency() == Transparency::Opaque
     }
 
-    #[inline]
     pub(super) fn is_solid(self) -> bool {
         match self {
             BlockId::Air => false,

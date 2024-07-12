@@ -50,7 +50,6 @@ impl PhysicalPosition {
 }
 
 impl From<Transform> for PhysicalPosition {
-    #[inline]
     fn from(transform: Transform) -> Self {
         Self {
             current: transform.translation,
@@ -73,14 +72,12 @@ impl Velocity {
 
 impl Mul<f32> for Velocity {
     type Output = Self;
-    #[inline]
     fn mul(self, rhs: f32) -> Self::Output {
         Self(self.0 * rhs)
     }
 }
 
 impl AddAssign<Velocity> for Vec3 {
-    #[inline]
     fn add_assign(&mut self, rhs: Velocity) {
         *self += rhs.0
     }
@@ -93,7 +90,6 @@ impl Acceleration {
 }
 
 impl From<Vec3> for Acceleration {
-    #[inline]
     fn from(acceleration: Vec3) -> Self {
         Self(acceleration)
     }
