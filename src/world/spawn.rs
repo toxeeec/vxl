@@ -7,10 +7,11 @@ use bevy::{
     utils::HashMap,
 };
 use itertools::Itertools;
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelExtend, ParallelIterator};
 
 use crate::{
     direction::Direction,
-    player::{PlayerChunkMoveEvent, PlayerSpawnEvent},
+    player::PlayerChunkMoveEvent,
     settings::RENDER_DISTANCE,
     texture::{ChunkMaterial, ChunkTexture},
 };
@@ -24,45 +25,60 @@ use super::{
 pub(super) struct ChunkSpawningTasks(HashMap<IVec2, Task<Chunk>>);
 
 impl WorldPlugin {
+    pub(super) fn generate_world(
+        mut commands: Commands,
+        noise: Res<Noise>,
+        params: Res<WorldgenParams>,
+        texture: Res<ChunkTexture>,
+        mut chunks: ResMut<Chunks>,
+        mut entities: ResMut<ChunkEntities>,
+        mut materials: ResMut<Assets<ChunkMaterial>>,
+        mut meshes: ResMut<Assets<Mesh>>,
+    ) {
+        let noise = noise.clone();
+        let params = params.clone();
+
+        chunks.0.par_extend(
+            renderable_chunks(IVec2::ZERO)
+                .par_bridge()
+                .map(|offset| (offset, Arc::new(Chunk::generate(offset, &noise, &params)))),
+        );
+
+        entities.0.extend(
+            chunks
+                .0
+                .par_iter()
+                .map(|(&offset, chunk)| (offset, chunk.get_mesh(&chunks.get_neighbors(offset))))
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|(offset, mesh)| {
+                    (
+                        offset,
+                        commands
+                            .spawn(MaterialMeshBundle {
+                                material: materials
+                                    .add(ChunkMaterial::new(offset, texture.0.clone())),
+                                mesh: meshes.add(mesh),
+                                ..Default::default()
+                            })
+                            .id(),
+                    )
+                }),
+        );
+    }
+
     pub(super) fn spawn_chunks(
-        mut spawn_events: EventReader<PlayerSpawnEvent>,
-        mut chunk_move_events: EventReader<PlayerChunkMoveEvent>,
+        mut events: EventReader<PlayerChunkMoveEvent>,
         noise: Res<Noise>,
         entities: Res<ChunkEntities>,
         params: Res<WorldgenParams>,
         mut tasks: ResMut<ChunkSpawningTasks>,
     ) {
-        fn renderable_chunks(player_offset: IVec2) -> impl Iterator<Item = IVec2> {
-            let player_offset = IVec2::new(player_offset.x, player_offset.y);
-            let iter_x = (-(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32)
-                .map(move |x| x + player_offset.x);
-            let iter_z = (-(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32)
-                .map(move |z| z + player_offset.y);
-
-            iter_x.cartesian_product(iter_z).filter_map(move |(x, z)| {
-                let offset = IVec2::new(x, z);
-                let aabb = Aabb2d::new(offset.as_vec2(), Vec2::splat(0.5));
-                let distance = player_offset
-                    .as_vec2()
-                    .distance(aabb.closest_point(player_offset.as_vec2()));
-
-                if distance <= RENDER_DISTANCE as f32 {
-                    Some(offset)
-                } else {
-                    None
-                }
-            })
-        }
-
         let thread_pool = AsyncComputeTaskPool::get();
         let noise = Arc::new(noise.clone());
 
-        for player_offset in spawn_events
-            .read()
-            .map(|ev| ev.offset)
-            .chain(chunk_move_events.read().map(|ev| ev.new_offset))
-        {
-            for offset in renderable_chunks(player_offset) {
+        for ev in events.read() {
+            for offset in renderable_chunks(ev.new_offset) {
                 if entities.0.contains_key(&offset) {
                     continue;
                 }
@@ -162,4 +178,26 @@ impl WorldPlugin {
             }
         });
     }
+}
+
+fn renderable_chunks(player_offset: IVec2) -> impl Iterator<Item = IVec2> {
+    let player_offset = IVec2::new(player_offset.x, player_offset.y);
+    let iter_x =
+        (-(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32).map(move |x| x + player_offset.x);
+    let iter_z =
+        (-(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32).map(move |z| z + player_offset.y);
+
+    iter_x.cartesian_product(iter_z).filter_map(move |(x, z)| {
+        let offset = IVec2::new(x, z);
+        let aabb = Aabb2d::new(offset.as_vec2(), Vec2::splat(0.5));
+        let distance = player_offset
+            .as_vec2()
+            .distance(aabb.closest_point(player_offset.as_vec2()));
+
+        if distance <= RENDER_DISTANCE as f32 {
+            Some(offset)
+        } else {
+            None
+        }
+    })
 }

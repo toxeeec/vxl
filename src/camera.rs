@@ -4,8 +4,11 @@ use bevy::{core_pipeline::tonemapping::Tonemapping, prelude::*};
 use leafwing_input_manager::prelude::*;
 
 use crate::{
+    physics::PhysicsSet,
     player::{CameraAction, Player},
+    sets::GameplaySet,
     settings,
+    state::AppState,
 };
 
 #[derive(Debug)]
@@ -13,17 +16,21 @@ pub(super) struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, Self::setup).add_systems(
-            Update,
-            (Self::tilt_camera, Self::copy_camera_transform).chain(),
-        );
+        app.add_systems(OnEnter(AppState::InGame), Self::spawn_camera)
+            .add_systems(
+                Update,
+                (Self::tilt_camera, Self::copy_camera_transform)
+                    .chain()
+                    .after(PhysicsSet)
+                    .in_set(GameplaySet),
+            );
     }
 }
 
 impl CameraPlugin {
     const EYE_HEIGHT: f32 = 1.6;
 
-    fn setup(mut commands: Commands) {
+    fn spawn_camera(mut commands: Commands) {
         commands.spawn(Camera3dBundle {
             projection: PerspectiveProjection {
                 fov: settings::FOV,
@@ -42,7 +49,10 @@ impl CameraPlugin {
         let mut camera = q_camera.single_mut();
         let action_state = q_action.single();
 
-        let delta = action_state.axis_pair(&CameraAction::Turn).unwrap().y();
+        let delta = action_state
+            .axis_pair(&CameraAction::Turn)
+            .unwrap_or_default()
+            .y();
         if delta == 0.0 {
             return;
         }

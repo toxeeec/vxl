@@ -3,17 +3,14 @@ use leafwing_input_manager::prelude::*;
 
 use crate::{
     physics::{Acceleration, MovementBundle, PhysicalPosition, PhysicsSet, RigidBody},
+    sets::GameplaySet,
     settings,
+    state::AppState,
     world::CHUNK_WIDTH,
 };
 
 #[derive(Component, Default, Debug)]
 pub(super) struct Player;
-
-#[derive(Event, Debug)]
-pub(super) struct PlayerSpawnEvent {
-    pub(super) offset: IVec2,
-}
 
 #[derive(Event, Debug)]
 pub(super) struct PlayerChunkMoveEvent {
@@ -50,11 +47,6 @@ struct PlayerBundle {
 #[derive(Debug)]
 pub(super) struct PlayerPlugin;
 
-impl PlayerSpawnEvent {
-    pub(super) fn new(offset: IVec2) -> Self {
-        Self { offset }
-    }
-}
 impl PlayerChunkMoveEvent {
     pub(super) fn new(new_offset: IVec2) -> Self {
         Self { new_offset }
@@ -86,17 +78,21 @@ impl PlayerBundle {
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<PlayerSpawnEvent>()
-            .add_event::<PlayerChunkMoveEvent>()
+        app.add_event::<PlayerChunkMoveEvent>()
             .add_plugins((
                 InputManagerPlugin::<CameraAction>::default(),
                 InputManagerPlugin::<MovementAction>::default(),
             ))
-            .add_systems(Startup, Self::setup)
-            .add_systems(FixedUpdate, Self::player_chunk_move.after(PhysicsSet))
+            .add_systems(OnEnter(AppState::InGame), Self::spawn_player)
+            .add_systems(
+                FixedUpdate,
+                (Self::player_chunk_move.after(PhysicsSet)).in_set(GameplaySet),
+            )
             .add_systems(
                 Update,
-                (Self::turn_player, Self::handle_player_movement).chain(),
+                (Self::turn_player, Self::handle_player_movement)
+                    .chain()
+                    .in_set(GameplaySet),
             );
     }
 }
@@ -104,19 +100,17 @@ impl Plugin for PlayerPlugin {
 impl PlayerPlugin {
     const ACCELERATION: f32 = 0.35;
 
-    fn setup(mut commands: Commands, mut events: EventWriter<PlayerSpawnEvent>) {
+    fn spawn_player(mut commands: Commands) {
         let pos = Vec3::new(0.0, 60.0, 0.0);
         commands.spawn(PlayerBundle::new(Transform::from_translation(pos)));
-        events.send(PlayerSpawnEvent::new(
-            pos.xz()
-                .as_ivec2()
-                .div_euclid(IVec2::splat(CHUNK_WIDTH as i32)),
-        ));
     }
 
     fn turn_player(mut query: Query<(&mut Transform, &ActionState<CameraAction>), With<Player>>) {
         let (mut player, action_state) = query.single_mut();
-        let delta = action_state.axis_pair(&CameraAction::Turn).unwrap().x();
+        let delta = action_state
+            .axis_pair(&CameraAction::Turn)
+            .unwrap_or_default()
+            .x();
         if delta == 0.0 {
             return;
         }

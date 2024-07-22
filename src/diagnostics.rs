@@ -4,6 +4,8 @@ use noise::NoiseFn;
 use crate::{
     physics::{PhysicalPosition, Velocity},
     player::Player,
+    sets::GameplaySet,
+    state::AppState,
     world::{Noise, WorldgenParams},
 };
 
@@ -21,16 +23,17 @@ impl Plugin for DiagnosticsPlugin {
             .register_diagnostic(Diagnostic::new(Self::POS_Z))
             .register_diagnostic(Diagnostic::new(Self::BLOCKS_PER_SECOND))
             .register_diagnostic(Diagnostic::new(Self::HILLINESS))
-            .add_systems(Startup, Self::setup)
+            .add_systems(OnEnter(AppState::InGame), Self::spawn_diagnostics_text)
             .add_systems(
                 FixedUpdate,
                 (
                     Self::update_position,
                     Self::update_blocks_per_second,
                     Self::update_hilliness.run_if(resource_exists::<WorldgenParams>),
-                ),
+                )
+                    .in_set(GameplaySet),
             )
-            .add_systems(Update, Self::display_diagnostics);
+            .add_systems(Update, (Self::display_diagnostics).in_set(GameplaySet));
     }
 }
 
@@ -41,7 +44,7 @@ impl DiagnosticsPlugin {
     const BLOCKS_PER_SECOND: DiagnosticPath = DiagnosticPath::const_new("blocks_per_second");
     const HILLINESS: DiagnosticPath = DiagnosticPath::const_new("hilliness");
 
-    fn setup(mut commands: Commands) {
+    fn spawn_diagnostics_text(mut commands: Commands) {
         let text_style = TextStyle {
             font_size: 24.0,
             ..Default::default()

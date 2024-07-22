@@ -2,7 +2,7 @@ use std::ops::{AddAssign, Mul};
 
 use bevy::{math::bounding::Bounded3d, prelude::*};
 
-use crate::world::Chunks;
+use crate::{sets::GameplaySet, world::Chunks};
 
 #[derive(Component, Default, Debug)]
 pub(super) struct PhysicalPosition {
@@ -114,9 +114,15 @@ impl Plugin for PhysicsPlugin {
                     (Self::handle_collisions, Self::apply_drag),
                 )
                     .chain()
-                    .in_set(PhysicsSet),
+                    .in_set(PhysicsSet)
+                    .in_set(GameplaySet),
             )
-            .add_systems(Update, Self::interpolate_positions);
+            .add_systems(
+                Update,
+                (Self::interpolate_positions)
+                    .in_set(PhysicsSet)
+                    .in_set(GameplaySet),
+            );
     }
 }
 

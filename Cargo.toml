@@ -6,9 +6,11 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.86"
 array-init = "2.1.0"
+hashbrown = { version = "0.14.5", features = ["rayon"] }
 itertools = "0.13.0"
 leafwing-input-manager = "0.14"
 noise = "0.9"
+rayon = "1.10.0"
 serde = "1.0.203"
 splines = { version = "4.3.1", features = ["glam"] }
 strum = { version = "0.26.2", features = ["derive"] }
@@ -19,6 +21,7 @@ version = "0.14"
 default-features = false
 features = [
   "bevy_pbr",
+  "bevy_state",
   "bevy_ui",
   "bevy_winit",
   "default_font",

@@ -12,7 +12,9 @@ use bevy::{
 use mesh::ChunkMeshingTasks;
 use spawn::ChunkSpawningTasks;
 
-use crate::{block::BlockId, direction::Direction, texture::ChunkTexture};
+use crate::{
+    block::BlockId, direction::Direction, sets::LoadingSet, state::AppState, texture::ChunkTexture,
+};
 
 pub(super) use gen::{Noise, WorldgenParams};
 
@@ -104,6 +106,16 @@ impl Chunks {
     }
 }
 
+impl WorldPlugin {
+    pub(super) fn is_loaded(params: Option<Res<WorldgenParams>>) -> bool {
+        params.is_some()
+    }
+
+    pub(super) fn is_generated(chunks: Res<Chunks>) -> bool {
+        !chunks.0.is_empty()
+    }
+}
+
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Chunks>()
@@ -112,11 +124,16 @@ impl Plugin for WorldPlugin {
             .init_resource::<ChunkSpawningTasks>()
             .init_resource::<ChunkMeshingTasks>()
             .init_resource::<Noise>()
-            .add_systems(Startup, Self::setup_loading_worldgen_params)
+            .add_systems(
+                OnEnter(AppState::Loading),
+                Self::setup_loading_worldgen_params,
+            )
+            .add_systems(OnEnter(AppState::Generating), Self::generate_world)
+            .add_systems(Update, (Self::load_worldgen_params).in_set(LoadingSet))
             .add_systems(
                 Update,
                 (
-                    (Self::despawn_chunks, Self::load_worldgen_params),
+                    Self::despawn_chunks,
                     (
                         Self::spawn_chunks.run_if(resource_exists::<WorldgenParams>),
                         Self::handle_meshing_tasks,

@@ -11,6 +11,8 @@ use bevy::{
     },
 };
 
+use crate::{sets::LoadingSet, state::AppState};
+
 // xxxxxxxxxxxx | xx       | xxx       | xxxxxxx | xxxx | xxxx
 //              | block id | direction | y       | z    | x
 pub(super) const ATTRIBUTE_DATA: MeshVertexAttribute =
@@ -75,15 +77,19 @@ impl ChunkTexture {
 impl Plugin for ChunkMaterialPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<ChunkMaterial>::default())
-            .add_systems(Startup, Self::setup)
-            .add_systems(Update, Self::create_texture);
+            .add_systems(OnEnter(AppState::Loading), Self::setup_loading_texture)
+            .add_systems(Update, (Self::create_texture).in_set(LoadingSet));
     }
 }
 
 impl ChunkMaterialPlugin {
     const TEXTURE_SIZE: usize = 8;
 
-    fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    pub(super) fn is_loaded(texture: Option<Res<ChunkTexture>>) -> bool {
+        texture.is_some()
+    }
+
+    fn setup_loading_texture(mut commands: Commands, asset_server: Res<AssetServer>) {
         commands.insert_resource(LoadingTexture {
             is_loaded: false,
             handle: asset_server.load("textures/blocks.png"),
