@@ -102,6 +102,21 @@ impl Chunks {
     }
 }
 
+impl DirtyChunks {
+    pub(super) fn insert(&mut self, offset: IVec2) {
+        self.0.insert(offset);
+
+        for dir in [
+            Direction::North,
+            Direction::East,
+            Direction::South,
+            Direction::West,
+        ] {
+            self.0.insert(offset + IVec2::from(dir));
+        }
+    }
+}
+
 impl WorldPlugin {
     pub(super) fn is_loaded(params: Option<Res<WorldgenParams>>) -> bool {
         params.is_some()
@@ -131,13 +146,13 @@ impl Plugin for WorldPlugin {
                 (
                     Self::despawn_chunks,
                     (
+                        Self::sync_dirty_chunks,
+                        Self::sync_chunk_entities.run_if(resource_exists::<ChunkTexture>),
+                    ),
+                    (
                         Self::spawn_chunks.run_if(resource_exists::<WorldgenParams>),
                         Self::handle_meshing_tasks,
-                        (
-                            Self::handle_spawning_tasks.run_if(resource_exists::<ChunkTexture>),
-                            Self::mesh_chunks,
-                        )
-                            .chain(),
+                        (Self::handle_spawning_tasks, Self::mesh_chunks).chain(),
                     ),
                 )
                     .chain(),

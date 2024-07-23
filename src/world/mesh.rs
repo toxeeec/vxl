@@ -87,7 +87,9 @@ impl WorldPlugin {
         let thread_pool = AsyncComputeTaskPool::get();
 
         for &offset in dirty.0.iter() {
-            let chunk = chunks.0.get(&offset).unwrap().clone();
+            let Some(chunk) = chunks.0.get(&offset).cloned() else {
+                return;
+            };
             let neighbors = chunks.get_neighbors(offset);
             let task = thread_pool.spawn(async move { chunk.get_mesh(&neighbors) });
             tasks.0.insert(offset, task);

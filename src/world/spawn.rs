@@ -10,7 +10,6 @@ use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelExtend, ParallelIterator};
 
 use crate::{
-    direction::Direction,
     player::PlayerChunkMoveEvent,
     settings::RENDER_DISTANCE,
     texture::{ChunkMaterial, ChunkTexture},
@@ -92,11 +91,9 @@ impl WorldPlugin {
     }
 
     pub(super) fn despawn_chunks(
-        mut commands: Commands,
         mut chunk_move_events: EventReader<PlayerChunkMoveEvent>,
         mut chunks: ResMut<Chunks>,
         mut dirty: ResMut<DirtyChunks>,
-        mut entities: ResMut<ChunkEntities>,
         mut spawning_tasks: ResMut<ChunkSpawningTasks>,
         mut meshing_tasks: ResMut<ChunkMeshingTasks>,
     ) {
@@ -117,61 +114,66 @@ impl WorldPlugin {
 
             for offset in &to_remove {
                 chunks.0.remove(offset);
-                dirty.0.remove(offset);
-                if let Some(entity) = entities.0.remove(offset) {
-                    commands.entity(entity).despawn();
-                }
                 spawning_tasks.0.remove(offset);
                 meshing_tasks.0.remove(offset);
-
-                for dir in [
-                    Direction::North,
-                    Direction::East,
-                    Direction::South,
-                    Direction::West,
-                ] {
-                    let neighbor_offset = *offset + IVec2::from(dir);
-                    if chunks.0.contains_key(&neighbor_offset) {
-                        dirty.0.insert(neighbor_offset);
-                    }
-                }
+                dirty.insert(*offset);
             }
         }
     }
 
-    pub(super) fn handle_spawning_tasks(
+    pub(super) fn sync_dirty_chunks(chunks: Res<Chunks>, mut dirty: ResMut<DirtyChunks>) {
+        if !chunks.is_changed() {
+            return;
+        }
+        dirty.0.retain(|offset| chunks.0.contains_key(offset));
+    }
+
+    pub(super) fn sync_chunk_entities(
         mut commands: Commands,
+        chunks: Res<Chunks>,
         texture: Res<ChunkTexture>,
-        mut tasks: ResMut<ChunkSpawningTasks>,
-        mut chunks: ResMut<Chunks>,
-        mut dirty: ResMut<DirtyChunks>,
         mut entities: ResMut<ChunkEntities>,
         mut materials: ResMut<Assets<ChunkMaterial>>,
     ) {
-        tasks.0.retain(|&offset, task| {
-            if let Some(chunk) = block_on(future::poll_once(task)) {
-                let entity = commands
+        if !chunks.is_changed() {
+            return;
+        }
+
+        entities.0.retain(|offset, entity| {
+            if !chunks.0.contains_key(offset) {
+                commands.entity(*entity).despawn();
+                false
+            } else {
+                true
+            }
+        });
+
+        for offset in chunks.0.keys() {
+            if entities.0.contains_key(offset) {
+                continue;
+            }
+
+            entities.0.insert(
+                *offset,
+                commands
                     .spawn(MaterialMeshBundle {
-                        material: materials.add(ChunkMaterial::new(offset, texture.0.clone())),
+                        material: materials.add(ChunkMaterial::new(*offset, texture.0.clone())),
                         ..Default::default()
                     })
-                    .id();
+                    .id(),
+            );
+        }
+    }
 
+    pub(super) fn handle_spawning_tasks(
+        mut tasks: ResMut<ChunkSpawningTasks>,
+        mut chunks: ResMut<Chunks>,
+        mut dirty: ResMut<DirtyChunks>,
+    ) {
+        tasks.0.retain(|&offset, task| {
+            if let Some(chunk) = block_on(future::poll_once(task)) {
                 chunks.0.insert(offset, chunk.into());
-                dirty.0.insert(offset);
-                entities.0.insert(offset, entity);
-
-                for dir in [
-                    Direction::North,
-                    Direction::East,
-                    Direction::South,
-                    Direction::West,
-                ] {
-                    let neighbor_offset = offset + IVec2::from(dir);
-                    if chunks.0.contains_key(&neighbor_offset) {
-                        dirty.0.insert(neighbor_offset);
-                    }
-                }
+                dirty.insert(offset);
                 false
             } else {
                 true
