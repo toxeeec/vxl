@@ -41,13 +41,9 @@ pub(super) struct WorldPlugin;
 
 impl Chunk {
     fn block_at(&self, neighbors: &Neighbors, pos: IVec3) -> BlockId {
-        debug_assert!(
-            pos.min_element() >= -1
-                && pos.xz().max_element() <= CHUNK_WIDTH as i32
-                && pos.y <= CHUNK_HEIGHT as i32
-        );
+        debug_assert!(pos.xz().min_element() >= -1 && pos.xz().max_element() <= CHUNK_WIDTH as i32);
 
-        if pos.y == -1 || pos.y == CHUNK_HEIGHT as i32 {
+        if pos.y < 0 || pos.y >= CHUNK_HEIGHT as i32 {
             return BlockId::Air;
         }
 
