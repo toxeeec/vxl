@@ -36,10 +36,8 @@ impl Chunk {
             let local_pos = IVec3::new(x as i32, y as i32, z as i32);
 
             for dir in Direction::iter() {
-                if self
-                    .block_at(neighbors, local_pos + IVec3::from(dir))
-                    .is_opaque()
-                {
+                let neighbor_pos = local_pos + IVec3::from(dir);
+                if neighbor_pos.y < 0 || self.block_at(neighbors, neighbor_pos).is_opaque() {
                     continue;
                 }
                 indices.extend(FACE_INDICES.map(|idx| vertices.len() as u32 + idx));
