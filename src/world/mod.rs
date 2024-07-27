@@ -1,3 +1,4 @@
+mod db;
 mod gen;
 mod mesh;
 mod spawn;
@@ -9,6 +10,7 @@ use bevy::{
     prelude::*,
     utils::{HashMap, HashSet},
 };
+use db::Db;
 use mesh::ChunkMeshingTasks;
 use spawn::ChunkSpawningTasks;
 
@@ -135,6 +137,7 @@ impl Plugin for WorldPlugin {
             .init_resource::<ChunkSpawningTasks>()
             .init_resource::<ChunkMeshingTasks>()
             .init_resource::<Noise>()
+            .init_resource::<Db>()
             .add_systems(
                 OnEnter(AppState::Loading),
                 Self::setup_loading_worldgen_params,

@@ -1,4 +1,7 @@
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+use strum::EnumCount;
+
+#[derive(EnumCount, Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
 pub(super) enum BlockId {
     Air,
     Grass,
@@ -36,6 +39,19 @@ impl BlockId {
             BlockId::Grass => true,
             BlockId::Dirt => true,
             BlockId::Stone => true,
+        }
+    }
+}
+
+impl From<u8> for BlockId {
+    fn from(value: u8) -> Self {
+        debug_assert!(value < BlockId::COUNT as u8);
+        match value {
+            0 => BlockId::Air,
+            1 => BlockId::Grass,
+            2 => BlockId::Dirt,
+            3 => BlockId::Stone,
+            _ => unreachable!(),
         }
     }
 }

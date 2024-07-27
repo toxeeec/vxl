@@ -4,7 +4,7 @@ use bevy::{
     math::bounding::Aabb2d,
     prelude::*,
     tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, Task},
-    utils::HashMap,
+    utils::{HashMap, HashSet},
 };
 use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelExtend, ParallelIterator};
@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    mesh::ChunkMeshingTasks, Chunk, ChunkEntities, Chunks, DirtyChunks, Noise, WorldPlugin,
+    db::Db, mesh::ChunkMeshingTasks, Chunk, ChunkEntities, Chunks, DirtyChunks, Noise, WorldPlugin,
     WorldgenParams,
 };
 
@@ -29,6 +29,7 @@ impl WorldPlugin {
         noise: Res<Noise>,
         params: Res<WorldgenParams>,
         texture: Res<ChunkTexture>,
+        db: Res<Db>,
         mut chunks: ResMut<Chunks>,
         mut entities: ResMut<ChunkEntities>,
         mut materials: ResMut<Assets<ChunkMaterial>>,
@@ -64,6 +65,10 @@ impl WorldPlugin {
                     )
                 }),
         );
+
+        let db = db.clone();
+        let chunks = chunks.0.clone();
+        block_on(async { db.insert_chunks(chunks).await });
     }
 
     pub(super) fn spawn_chunks(
@@ -71,16 +76,30 @@ impl WorldPlugin {
         noise: Res<Noise>,
         entities: Res<ChunkEntities>,
         params: Res<WorldgenParams>,
+        db: Res<Db>,
+        mut chunks: ResMut<Chunks>,
+        mut dirty: ResMut<DirtyChunks>,
         mut tasks: ResMut<ChunkSpawningTasks>,
     ) {
         let thread_pool = AsyncComputeTaskPool::get();
         let noise = Arc::new(noise.clone());
 
         for ev in events.read() {
-            for offset in renderable_chunks(ev.new_offset) {
-                if entities.0.contains_key(&offset) {
-                    continue;
+            let offsets =
+                renderable_chunks(ev.new_offset).filter(|offset| !entities.0.contains_key(offset));
+
+            let offsets = block_on(async {
+                let mut offsets = HashSet::from_iter(offsets);
+                for row in db.get_chunks(offsets.iter()).await {
+                    let offset = IVec2::new(row.x, row.z);
+                    chunks.0.insert(offset, Arc::new(row.blocks));
+                    dirty.0.insert(offset);
+                    offsets.remove(&IVec2::new(row.x, row.z));
                 }
+                offsets
+            });
+
+            for offset in offsets {
                 let noise = noise.clone();
                 let params = params.clone();
                 let task =
@@ -166,19 +185,30 @@ impl WorldPlugin {
     }
 
     pub(super) fn handle_spawning_tasks(
+        db: Res<Db>,
         mut tasks: ResMut<ChunkSpawningTasks>,
         mut chunks: ResMut<Chunks>,
         mut dirty: ResMut<DirtyChunks>,
     ) {
+        let mut spawned_chunks = Vec::new();
+
         tasks.0.retain(|&offset, task| {
             if let Some(chunk) = block_on(future::poll_once(task)) {
-                chunks.0.insert(offset, chunk.into());
+                let chunk = Arc::new(chunk);
+                chunks.0.insert(offset, chunk.clone());
                 dirty.insert(offset);
+                spawned_chunks.push((offset, chunk));
                 false
             } else {
                 true
             }
         });
+
+        if spawned_chunks.is_empty() {
+            return;
+        }
+
+        block_on(db.insert_chunks(spawned_chunks));
     }
 }
 
