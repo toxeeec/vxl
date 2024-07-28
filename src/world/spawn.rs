@@ -7,7 +7,7 @@ use bevy::{
     utils::{HashMap, HashSet},
 };
 use itertools::Itertools;
-use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelExtend, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 
 use crate::{
     player::PlayerChunkMoveEvent,
@@ -38,11 +38,25 @@ impl WorldPlugin {
         let noise = noise.clone();
         let params = params.clone();
 
-        chunks.0.par_extend(
-            renderable_chunks(IVec2::ZERO)
-                .par_bridge()
-                .map(|offset| (offset, Arc::new(Chunk::generate(offset, &noise, &params)))),
-        );
+        #[cfg(debug_assertions)]
+        let radius = RENDER_DISTANCE;
+        #[cfg(not(debug_assertions))]
+        let radius = RENDER_DISTANCE * 2;
+
+        let world: Vec<_> = chunks_around(IVec2::ZERO, radius)
+            .par_bridge()
+            .map(|offset| (offset, Arc::new(Chunk::generate(offset, &noise, &params))))
+            .collect();
+
+        chunks.0.extend(world.iter().filter_map(|(offset, chunk)| {
+            if distance_between(IVec2::ZERO, *offset) <= RENDER_DISTANCE as f32 {
+                Some((*offset, chunk.clone()))
+            } else {
+                None
+            }
+        }));
+
+        block_on(db.insert_chunks(world));
 
         entities.0.extend(
             chunks
@@ -65,10 +79,6 @@ impl WorldPlugin {
                     )
                 }),
         );
-
-        let db = db.clone();
-        let chunks = chunks.0.clone();
-        block_on(async { db.insert_chunks(chunks).await });
     }
 
     pub(super) fn spawn_chunks(
@@ -85,8 +95,8 @@ impl WorldPlugin {
         let noise = Arc::new(noise.clone());
 
         for ev in events.read() {
-            let offsets =
-                renderable_chunks(ev.new_offset).filter(|offset| !entities.0.contains_key(offset));
+            let offsets = chunks_around(ev.new_offset, RENDER_DISTANCE)
+                .filter(|offset| !entities.0.contains_key(offset));
 
             let offsets = block_on(async {
                 let mut offsets = HashSet::from_iter(offsets);
@@ -120,14 +130,10 @@ impl WorldPlugin {
             let player_offset = IVec2::new(new_offset.x, new_offset.y);
             let mut to_remove = Vec::new();
 
-            for offset in chunks.0.keys() {
-                let aabb = Aabb2d::new(offset.as_vec2(), Vec2::splat(0.5));
-                let distance = player_offset
-                    .as_vec2()
-                    .distance(aabb.closest_point(player_offset.as_vec2()));
-
+            for &offset in chunks.0.keys() {
+                let distance = distance_between(player_offset, offset);
                 if distance > RENDER_DISTANCE as f32 {
-                    to_remove.push(*offset);
+                    to_remove.push(offset);
                 }
             }
 
@@ -212,24 +218,22 @@ impl WorldPlugin {
     }
 }
 
-fn renderable_chunks(player_offset: IVec2) -> impl Iterator<Item = IVec2> {
-    let player_offset = IVec2::new(player_offset.x, player_offset.y);
-    let iter_x =
-        (-(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32).map(move |x| x + player_offset.x);
-    let iter_z =
-        (-(RENDER_DISTANCE as i32)..=RENDER_DISTANCE as i32).map(move |z| z + player_offset.y);
+fn chunks_around(origin: IVec2, radius: i32) -> impl Iterator<Item = IVec2> {
+    let iter_x = (-radius..=radius).map(move |x| x + origin.x);
+    let iter_z = (-radius..=radius).map(move |z| z + origin.y);
 
     iter_x.cartesian_product(iter_z).filter_map(move |(x, z)| {
         let offset = IVec2::new(x, z);
-        let aabb = Aabb2d::new(offset.as_vec2(), Vec2::splat(0.5));
-        let distance = player_offset
-            .as_vec2()
-            .distance(aabb.closest_point(player_offset.as_vec2()));
-
-        if distance <= RENDER_DISTANCE as f32 {
+        let distance = distance_between(origin, offset);
+        if distance <= radius as f32 {
             Some(offset)
         } else {
             None
         }
     })
+}
+
+fn distance_between(a: IVec2, b: IVec2) -> f32 {
+    let aabb = Aabb2d::new(b.as_vec2(), Vec2::splat(0.5));
+    a.as_vec2().distance(aabb.closest_point(a.as_vec2()))
 }
