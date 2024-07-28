@@ -2,7 +2,7 @@ use bevy::{diagnostic::*, prelude::*};
 use noise::NoiseFn;
 
 use crate::{
-    physics::{PhysicalPosition, Velocity},
+    physics::{PhysicalPosition, PhysicsSet, Velocity},
     player::Player,
     sets::GameplaySet,
     state::AppState,
@@ -31,6 +31,7 @@ impl Plugin for DiagnosticsPlugin {
                     Self::update_blocks_per_second,
                     Self::update_hilliness.run_if(resource_exists::<WorldgenParams>),
                 )
+                    .after(PhysicsSet)
                     .in_set(GameplaySet),
             )
             .add_systems(Update, (Self::display_diagnostics).in_set(GameplaySet));

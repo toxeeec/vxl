@@ -27,14 +27,15 @@ pub(super) struct CollisionEvent {
     z: Option<f32>,
 }
 
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub(super) struct PhysicsSet;
 
 #[derive(Bundle, Default, Debug)]
 pub(super) struct MovementBundle {
     velocity: Velocity,
     acceleration: Acceleration,
 }
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct PhysicsSet;
 
 #[derive(Debug)]
 pub(super) struct PhysicsPlugin;
@@ -108,10 +109,14 @@ impl Plugin for PhysicsPlugin {
                 FixedUpdate,
                 (
                     Self::remove_negligible_velocities,
-                    Self::apply_accelerations,
+                    (Self::apply_accelerations, Self::apply_gravity),
                     Self::check_for_collisions,
                     Self::apply_velocities,
-                    (Self::handle_collisions, Self::apply_drag),
+                    (
+                        Self::handle_collisions,
+                        Self::apply_horizontal_drag,
+                        Self::apply_vertical_drag,
+                    ),
                 )
                     .chain()
                     .in_set(PhysicsSet)
@@ -127,7 +132,9 @@ impl Plugin for PhysicsPlugin {
 }
 
 impl PhysicsPlugin {
-    const DRAG: f32 = 0.03;
+    const GRAVITY: f32 = 32.0;
+    const HORIZONTAL_DRAG: f32 = 0.03;
+    const VERTICAL_DRAG: f32 = 0.006;
 
     fn remove_negligible_velocities(mut query: Query<&mut Velocity>) {
         const MIN_VELOCITY: f32 = 0.003;
@@ -147,6 +154,13 @@ impl PhysicsPlugin {
     fn apply_accelerations(mut query: Query<(&mut Velocity, &Acceleration)>) {
         for (mut vel, acc) in &mut query {
             vel.0 += acc.0;
+        }
+    }
+
+    fn apply_gravity(mut query: Query<&mut Velocity>, time: Res<Time>) {
+        let delta_seconds = time.delta_seconds();
+        for mut vel in &mut query {
+            vel.0.y -= Self::GRAVITY * delta_seconds;
         }
     }
 
@@ -219,9 +233,16 @@ impl PhysicsPlugin {
         }
     }
 
-    fn apply_drag(mut query: Query<&mut Velocity>) {
+    fn apply_horizontal_drag(mut query: Query<&mut Velocity>) {
         for mut vel in &mut query {
-            vel.0 *= 1.0 - Self::DRAG;
+            vel.0.x *= 1.0 - Self::HORIZONTAL_DRAG;
+            vel.0.z *= 1.0 - Self::HORIZONTAL_DRAG;
+        }
+    }
+
+    fn apply_vertical_drag(mut query: Query<&mut Velocity>) {
+        for mut vel in &mut query {
+            vel.0.y *= 1.0 - Self::VERTICAL_DRAG;
         }
     }
 
