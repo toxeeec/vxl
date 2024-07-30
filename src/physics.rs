@@ -14,10 +14,10 @@ pub(super) struct PhysicalPosition {
 pub(super) struct RigidBody(Cuboid);
 
 #[derive(Component, Clone, Copy, Default, Debug)]
-pub(super) struct Velocity(Vec3);
+pub(super) struct Velocity(pub(super) Vec3);
 
 #[derive(Component, Clone, Copy, PartialEq, Default, Debug)]
-pub(super) struct Acceleration(Vec3);
+pub(super) struct Acceleration(pub(super) Vec3);
 
 #[derive(Event, Debug)]
 pub(super) struct CollisionEvent {
@@ -27,6 +27,8 @@ pub(super) struct CollisionEvent {
     z: Option<f32>,
 }
 
+#[derive(Component, Debug)]
+pub(super) struct Grounded;
 
 #[derive(Bundle, Default, Debug)]
 pub(super) struct MovementBundle {
@@ -84,12 +86,6 @@ impl AddAssign<Velocity> for Vec3 {
     }
 }
 
-impl Acceleration {
-    pub(super) fn new(acceleration: Vec3) -> Self {
-        Self(acceleration)
-    }
-}
-
 impl From<Vec3> for Acceleration {
     fn from(acceleration: Vec3) -> Self {
         Self(acceleration)
@@ -112,6 +108,7 @@ impl Plugin for PhysicsPlugin {
                     (Self::apply_accelerations, Self::apply_gravity),
                     Self::check_for_collisions,
                     Self::apply_velocities,
+                    Self::update_grounded,
                     (
                         Self::handle_collisions,
                         Self::apply_horizontal_drag,
@@ -228,6 +225,24 @@ impl PhysicsPlugin {
                 if let Some(z) = ev.z {
                     pos.current.z = z;
                     vel.0.z = 0.0;
+                }
+            }
+        }
+    }
+
+    fn update_grounded(
+        mut commands: Commands,
+        mut query: Query<(Entity, &Velocity), With<RigidBody>>,
+        mut events: EventReader<CollisionEvent>,
+    ) {
+        for (entity, _) in &query {
+            commands.entity(entity).remove::<Grounded>();
+        }
+
+        for ev in events.read() {
+            if let Ok((entity, vel)) = query.get_mut(ev.entity) {
+                if ev.y.is_some() && vel.0.y < 0.0 {
+                    commands.entity(entity).insert(Grounded);
                 }
             }
         }

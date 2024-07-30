@@ -2,7 +2,9 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 use crate::{
-    physics::{Acceleration, MovementBundle, PhysicalPosition, PhysicsSet, RigidBody},
+    physics::{
+        Acceleration, Grounded, MovementBundle, PhysicalPosition, PhysicsSet, RigidBody, Velocity,
+    },
     sets::GameplaySet,
     settings,
     state::AppState,
@@ -99,6 +101,7 @@ impl Plugin for PlayerPlugin {
 
 impl PlayerPlugin {
     const ACCELERATION: f32 = 0.35;
+    const JUMP_VELOCITY: f32 = 10.0;
 
     fn spawn_player(mut commands: Commands) {
         let pos = Vec3::new(0.0, 60.0, 0.0);
@@ -123,11 +126,17 @@ impl PlayerPlugin {
 
     fn handle_player_movement(
         mut query: Query<
-            (&Transform, &ActionState<MovementAction>, &mut Acceleration),
+            (
+                &Transform,
+                &ActionState<MovementAction>,
+                &mut Acceleration,
+                &mut Velocity,
+                Option<&Grounded>,
+            ),
             With<Player>,
         >,
     ) {
-        let (transform, action_state, mut acceleration) = query.single_mut();
+        let (transform, action_state, mut acc, mut vel, grounded) = query.single_mut();
 
         let mut direction = Vec3::ZERO;
 
@@ -143,14 +152,15 @@ impl PlayerPlugin {
         if action_state.pressed(&MovementAction::Right) {
             direction += *transform.right();
         }
-        if action_state.pressed(&MovementAction::Up) {
-            direction += *transform.up();
-        }
-        if action_state.pressed(&MovementAction::Down) {
-            direction += *transform.down();
+
+        if action_state.pressed(&MovementAction::Up) && grounded.is_some() {
+            vel.0.y = Self::JUMP_VELOCITY;
         }
 
-        *acceleration = Acceleration::new(direction.normalize_or_zero() * Self::ACCELERATION);
+        direction = direction.normalize_or_zero();
+
+        acc.0.x = direction.x * Self::ACCELERATION;
+        acc.0.z = direction.z * Self::ACCELERATION;
     }
 
     fn player_chunk_move(
