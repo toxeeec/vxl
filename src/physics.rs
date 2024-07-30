@@ -1,6 +1,6 @@
 use std::ops::{AddAssign, Mul};
 
-use bevy::{math::bounding::Bounded3d, prelude::*};
+use bevy::prelude::*;
 
 use crate::{sets::GameplaySet, world::Chunks};
 
@@ -285,9 +285,6 @@ fn collision_at<const AXIS: char>(
     displacement: Vec3,
     chunks: &Chunks,
 ) -> Option<f32> {
-    let body_center = *pos + Vec3::new(0.0, body.0.half_size.y, 0.0);
-    let body_aabb = body.0.aabb_3d(body_center, Quat::IDENTITY);
-
     let (vel, displacement) = match AXIS {
         'X' => (displacement.x, Vec3::new(displacement.x, 0.0, 0.0)),
         'Y' => (displacement.y, Vec3::new(0.0, displacement.y, 0.0)),
@@ -299,10 +296,16 @@ fn collision_at<const AXIS: char>(
         return None;
     }
 
-    *pos += displacement;
-
-    let min = Vec3::from(body_aabb.min) + displacement.min(Vec3::ZERO);
-    let max = Vec3::from(body_aabb.max) + displacement.max(Vec3::ZERO);
+    let min = Vec3::new(
+        pos.x - body.0.half_size.x,
+        pos.y,
+        pos.z - body.0.half_size.z,
+    ) + displacement.min(Vec3::ZERO);
+    let max = Vec3::new(
+        pos.x + body.0.half_size.x,
+        pos.y + body.0.size().y,
+        pos.z + body.0.half_size.z,
+    ) + displacement.max(Vec3::ZERO);
 
     let mut collision_dist = vel.abs();
     let mut at = None;
@@ -317,38 +320,22 @@ fn collision_at<const AXIS: char>(
                     let (block_pos, body_pos) = match AXIS {
                         'X' => (
                             x as f32 + 0.5 - 0.5_f32.copysign(vel),
-                            body_center.x + body.0.half_size.x.copysign(vel),
+                            pos.x + body.0.half_size.x.copysign(vel),
                         ),
                         'Y' => (
                             y as f32 + 0.5 - 0.5_f32.copysign(vel),
-                            body_center.y + body.0.half_size.y.copysign(vel),
+                            pos.y + body.0.size().y * vel.is_sign_positive() as i32 as f32,
                         ),
                         'Z' => (
                             z as f32 + 0.5 - 0.5_f32.copysign(vel),
-                            body_center.z + body.0.half_size.z.copysign(vel),
+                            pos.z + body.0.half_size.z.copysign(vel),
                         ),
                         _ => unreachable!(),
                     };
 
                     let dist = (body_pos - block_pos).abs();
                     if dist < collision_dist {
-                        at = Some(match AXIS {
-                            'X' => {
-                                pos.x = block_pos - body.0.half_size.x.copysign(vel);
-                                pos.x
-                            }
-                            'Y' => {
-                                pos.y = block_pos
-                                    - body.0.half_size.y.copysign(vel)
-                                    - body.0.half_size.y;
-                                pos.y
-                            }
-                            'Z' => {
-                                pos.z = block_pos - body.0.half_size.z.copysign(vel);
-                                pos.z
-                            }
-                            _ => unreachable!(),
-                        });
+                        at = Some(block_pos);
                         collision_dist = dist;
                     }
                 } else {
@@ -357,5 +344,24 @@ fn collision_at<const AXIS: char>(
             }
         }
     }
-    at
+
+    if at.is_none() {
+        *pos += displacement;
+    }
+
+    at.map(|at| match AXIS {
+        'X' => {
+            pos.x = at - body.0.half_size.x.copysign(vel);
+            pos.x
+        }
+        'Y' => {
+            pos.y = at - (body.0.half_size.y.copysign(vel) + body.0.half_size.y);
+            pos.y
+        }
+        'Z' => {
+            pos.z = at - body.0.half_size.z.copysign(vel);
+            pos.z
+        }
+        _ => unreachable!(),
+    })
 }
