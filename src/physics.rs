@@ -30,6 +30,9 @@ pub(super) struct CollisionEvent {
 #[derive(Component, Debug)]
 pub(super) struct Grounded;
 
+#[derive(Component, Debug)]
+pub(super) struct Flying;
+
 #[derive(Bundle, Default, Debug)]
 pub(super) struct MovementBundle {
     velocity: Velocity,
@@ -109,6 +112,7 @@ impl Plugin for PhysicsPlugin {
                     Self::check_for_collisions,
                     Self::apply_velocities,
                     Self::update_grounded,
+                    Self::remove_flying,
                     (
                         Self::handle_collisions,
                         Self::apply_horizontal_drag,
@@ -154,7 +158,7 @@ impl PhysicsPlugin {
         }
     }
 
-    fn apply_gravity(mut query: Query<&mut Velocity>, time: Res<Time>) {
+    fn apply_gravity(mut query: Query<&mut Velocity, Without<Flying>>, time: Res<Time>) {
         let delta_seconds = time.delta_seconds();
         for mut vel in &mut query {
             vel.0.y -= Self::GRAVITY * delta_seconds;
@@ -243,6 +247,21 @@ impl PhysicsPlugin {
             if let Ok((entity, vel)) = query.get_mut(ev.entity) {
                 if ev.y.is_some() && vel.0.y < 0.0 {
                     commands.entity(entity).insert(Grounded);
+                }
+            }
+        }
+    }
+
+    fn remove_flying(
+        mut commands: Commands,
+        mut query: Query<(Entity, &Velocity, &mut Acceleration), (With<Flying>, With<RigidBody>)>,
+        mut events: EventReader<CollisionEvent>,
+    ) {
+        for ev in events.read() {
+            if let Ok((entity, vel, mut acc)) = query.get_mut(ev.entity) {
+                if ev.y.is_some() && vel.0.y < 0.0 {
+                    commands.entity(entity).remove::<Flying>();
+                    acc.0.y = 0.0;
                 }
             }
         }

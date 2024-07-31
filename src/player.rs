@@ -1,9 +1,12 @@
-use bevy::prelude::*;
+use std::time::Duration;
+
+use bevy::{prelude::*, time::Stopwatch};
 use leafwing_input_manager::prelude::*;
 
 use crate::{
     physics::{
-        Acceleration, Grounded, MovementBundle, PhysicalPosition, PhysicsSet, RigidBody, Velocity,
+        Acceleration, Flying, Grounded, MovementBundle, PhysicalPosition, PhysicsSet, RigidBody,
+        Velocity,
     },
     sets::GameplaySet,
     settings,
@@ -92,7 +95,12 @@ impl Plugin for PlayerPlugin {
             )
             .add_systems(
                 Update,
-                (Self::turn_player, Self::handle_player_movement)
+                (
+                    Self::turn_player,
+                    Self::handle_player_horizontal_movement,
+                    Self::handle_player_vertical_movement,
+                    Self::handle_player_jumping,
+                )
                     .chain()
                     .in_set(GameplaySet),
             );
@@ -102,6 +110,7 @@ impl Plugin for PlayerPlugin {
 impl PlayerPlugin {
     const ACCELERATION: f32 = 0.35;
     const JUMP_VELOCITY: f32 = 10.0;
+    const DOUBLE_TAP_DELAY: Duration = Duration::from_millis(500);
 
     fn spawn_player(mut commands: Commands) {
         let pos = Vec3::new(0.0, 60.0, 0.0);
@@ -124,19 +133,13 @@ impl PlayerPlugin {
         player.rotation = Quat::from_rotation_y(yaw);
     }
 
-    fn handle_player_movement(
+    fn handle_player_horizontal_movement(
         mut query: Query<
-            (
-                &Transform,
-                &ActionState<MovementAction>,
-                &mut Acceleration,
-                &mut Velocity,
-                Option<&Grounded>,
-            ),
+            (&Transform, &ActionState<MovementAction>, &mut Acceleration),
             With<Player>,
         >,
     ) {
-        let (transform, action_state, mut acc, mut vel, grounded) = query.single_mut();
+        let (transform, action_state, mut acc) = query.single_mut();
 
         let mut direction = Vec3::ZERO;
 
@@ -153,14 +156,77 @@ impl PlayerPlugin {
             direction += *transform.right();
         }
 
-        if action_state.pressed(&MovementAction::Up) && grounded.is_some() {
-            vel.0.y = Self::JUMP_VELOCITY;
-        }
-
         direction = direction.normalize_or_zero();
 
         acc.0.x = direction.x * Self::ACCELERATION;
         acc.0.z = direction.z * Self::ACCELERATION;
+    }
+
+    fn handle_player_vertical_movement(
+        mut commands: Commands,
+        mut query: Query<
+            (
+                Entity,
+                &Transform,
+                &ActionState<MovementAction>,
+                &mut Acceleration,
+                Option<&Flying>,
+            ),
+            With<Player>,
+        >,
+        time: Res<Time>,
+        mut prev_up: Local<Stopwatch>,
+    ) {
+        prev_up.tick(time.delta());
+        let (entity, transform, action_state, mut acc, flying) = query.single_mut();
+
+        let mut direction = Vec3::ZERO;
+
+        if action_state.pressed(&MovementAction::Up) {
+            direction += *transform.up();
+        }
+        if action_state.pressed(&MovementAction::Down) {
+            direction += *transform.down();
+        }
+
+        if flying.is_some() {
+            direction = direction.normalize_or_zero();
+            acc.0.y = direction.y * Self::ACCELERATION;
+        }
+
+        if action_state.just_pressed(&MovementAction::Up) {
+            if prev_up.elapsed() < Self::DOUBLE_TAP_DELAY {
+                match flying {
+                    Some(_) => {
+                        commands.entity(entity).remove::<Flying>();
+                        acc.0.y = 0.0;
+                    }
+                    None => {
+                        commands.entity(entity).insert(Flying);
+                    }
+                };
+                prev_up.set_elapsed(Self::DOUBLE_TAP_DELAY);
+            } else {
+                prev_up.reset();
+            }
+        }
+    }
+
+    fn handle_player_jumping(
+        mut query: Query<
+            (
+                &ActionState<MovementAction>,
+                &mut Velocity,
+                Option<&Grounded>,
+            ),
+            With<Player>,
+        >,
+    ) {
+        let (action_state, mut vel, grounded) = query.single_mut();
+
+        if action_state.pressed(&MovementAction::Up) && grounded.is_some() {
+            vel.0.y = Self::JUMP_VELOCITY;
+        }
     }
 
     fn player_chunk_move(
