@@ -152,9 +152,10 @@ impl PhysicsPlugin {
         }
     }
 
-    fn apply_accelerations(mut query: Query<(&mut Velocity, &Acceleration)>) {
+    fn apply_accelerations(mut query: Query<(&mut Velocity, &Acceleration)>, time: Res<Time>) {
+        let delta_seconds = time.delta_seconds();
         for (mut vel, acc) in &mut query {
-            vel.0 += acc.0;
+            vel.0 += acc.0 * delta_seconds;
         }
     }
 
