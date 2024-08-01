@@ -109,6 +109,7 @@ impl Plugin for PhysicsPlugin {
                 (
                     Self::remove_negligible_velocities,
                     Self::apply_slipperiness,
+                    Self::reduce_flight_velocity,
                     (Self::apply_accelerations, Self::apply_gravity),
                     Self::check_for_collisions,
                     Self::apply_velocities,
@@ -138,6 +139,7 @@ impl PhysicsPlugin {
     const HORIZONTAL_DRAG: f32 = 0.03;
     const VERTICAL_DRAG: f32 = 0.006;
     const SLIPPERINESS: f32 = 0.8;
+    const FLIGHT_VELOCITY_REDUCTION: f32 = 0.1;
 
     fn remove_negligible_velocities(mut query: Query<&mut Velocity>) {
         const MIN_VELOCITY: f32 = 0.003;
@@ -292,9 +294,15 @@ impl PhysicsPlugin {
         }
     }
 
-    fn apply_vertical_drag(mut query: Query<&mut Velocity>) {
+    fn apply_vertical_drag(mut query: Query<&mut Velocity, Without<Flying>>) {
         for mut vel in &mut query {
             vel.0.y *= 1.0 - Self::VERTICAL_DRAG;
+        }
+    }
+
+    fn reduce_flight_velocity(mut query: Query<&mut Velocity, With<Flying>>) {
+        for mut vel in &mut query {
+            vel.0.y *= 1.0 - Self::FLIGHT_VELOCITY_REDUCTION;
         }
     }
 
