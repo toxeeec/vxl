@@ -5,8 +5,8 @@ use leafwing_input_manager::prelude::*;
 
 use crate::{
     physics::{
-        Acceleration, Flying, Grounded, MovementBundle, PhysicalPosition, PhysicsSet, RigidBody,
-        Velocity,
+        Acceleration, CollisionEvent, Flying, Grounded, MovementBundle, PhysicalPosition,
+        PhysicsSet, RigidBody, Velocity,
     },
     sets::GameplaySet,
     settings,
@@ -174,11 +174,18 @@ impl PlayerPlugin {
             ),
             With<Player>,
         >,
+        mut events: EventReader<CollisionEvent>,
         time: Res<Time>,
         mut prev_up: Local<Stopwatch>,
     ) {
         prev_up.tick(time.delta());
         let (entity, transform, action_state, mut acc, flying) = query.single_mut();
+
+        for ev in events.read() {
+            if ev.entity == entity && ev.y.is_some() {
+                prev_up.set_elapsed(Self::DOUBLE_TAP_DELAY);
+            }
+        }
 
         let mut direction = Vec3::ZERO;
 

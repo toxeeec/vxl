@@ -21,10 +21,10 @@ pub(super) struct Acceleration(pub(super) Vec3);
 
 #[derive(Event, Debug)]
 pub(super) struct CollisionEvent {
-    entity: Entity,
-    x: Option<f32>,
-    y: Option<f32>,
-    z: Option<f32>,
+    pub(super) entity: Entity,
+    pub(super) x: Option<f32>,
+    pub(super) y: Option<f32>,
+    pub(super) z: Option<f32>,
 }
 
 #[derive(Component, Debug)]
