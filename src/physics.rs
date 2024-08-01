@@ -108,6 +108,7 @@ impl Plugin for PhysicsPlugin {
                 FixedUpdate,
                 (
                     Self::remove_negligible_velocities,
+                    Self::apply_slipperiness,
                     (Self::apply_accelerations, Self::apply_gravity),
                     Self::check_for_collisions,
                     Self::apply_velocities,
@@ -136,6 +137,7 @@ impl PhysicsPlugin {
     const GRAVITY: f32 = 32.0;
     const HORIZONTAL_DRAG: f32 = 0.03;
     const VERTICAL_DRAG: f32 = 0.006;
+    const SLIPPERINESS: f32 = 0.8;
 
     fn remove_negligible_velocities(mut query: Query<&mut Velocity>) {
         const MIN_VELOCITY: f32 = 0.003;
@@ -163,6 +165,21 @@ impl PhysicsPlugin {
         let delta_seconds = time.delta_seconds();
         for mut vel in &mut query {
             vel.0.y -= Self::GRAVITY * delta_seconds;
+        }
+    }
+
+    fn apply_slipperiness(mut query: Query<(&mut Velocity, &mut Acceleration, Option<&Grounded>)>) {
+        for (mut vel, mut acc, grounded) in &mut query {
+            let slipperiness = if grounded.is_some() {
+                Self::SLIPPERINESS
+            } else {
+                1.0
+            };
+            vel.0.x *= slipperiness;
+            vel.0.z *= slipperiness;
+
+            acc.0.x *= (Self::SLIPPERINESS / slipperiness).powi(8);
+            acc.0.z *= (Self::SLIPPERINESS / slipperiness).powi(8);
         }
     }
 

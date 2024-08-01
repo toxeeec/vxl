@@ -108,7 +108,7 @@ impl Plugin for PlayerPlugin {
 }
 
 impl PlayerPlugin {
-    const ACCELERATION: f32 = 24.0;
+    const ACCELERATION: f32 = 64.0;
     const JUMP_VELOCITY: f32 = 10.0;
     const DOUBLE_TAP_DELAY: Duration = Duration::from_millis(500);
 
