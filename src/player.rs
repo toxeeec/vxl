@@ -110,6 +110,7 @@ impl Plugin for PlayerPlugin {
 impl PlayerPlugin {
     const ACCELERATION: f32 = 64.0;
     const JUMP_VELOCITY: f32 = 10.0;
+    const AUTOJUMP_COOLDOWN: Duration = Duration::from_millis(500);
     const DOUBLE_TAP_DELAY: Duration = Duration::from_millis(500);
 
     fn spawn_player(mut commands: Commands) {
@@ -228,11 +229,19 @@ impl PlayerPlugin {
             ),
             With<Player>,
         >,
+        time: Res<Time>,
+        mut cooldown: Local<Stopwatch>,
     ) {
+        cooldown.tick(time.delta());
         let (action_state, mut vel, grounded) = query.single_mut();
 
-        if action_state.pressed(&MovementAction::Up) && grounded.is_some() {
-            vel.0.y = Self::JUMP_VELOCITY;
+        if action_state.pressed(&MovementAction::Up) {
+            if grounded.is_some() && cooldown.elapsed() >= Self::AUTOJUMP_COOLDOWN {
+                vel.0.y = Self::JUMP_VELOCITY;
+                cooldown.reset();
+            }
+        } else {
+            cooldown.set_elapsed(Self::AUTOJUMP_COOLDOWN);
         }
     }
 
