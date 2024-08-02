@@ -19,6 +19,17 @@ pub(super) struct Velocity(pub(super) Vec3);
 #[derive(Component, Clone, Copy, PartialEq, Default, Debug)]
 pub(super) struct Acceleration(pub(super) Vec3);
 
+#[derive(Component, Debug)]
+pub(super) struct Grounded;
+
+#[derive(Component, Debug)]
+pub(super) struct Flying;
+
+#[derive(Component, Debug)]
+pub(super) struct Sprinting {
+    multiplier: f32,
+}
+
 #[derive(Event, Debug)]
 pub(super) struct CollisionEvent {
     pub(super) entity: Entity,
@@ -26,12 +37,6 @@ pub(super) struct CollisionEvent {
     pub(super) y: Option<f32>,
     pub(super) z: Option<f32>,
 }
-
-#[derive(Component, Debug)]
-pub(super) struct Grounded;
-
-#[derive(Component, Debug)]
-pub(super) struct Flying;
 
 #[derive(Bundle, Default, Debug)]
 pub(super) struct MovementBundle {
@@ -95,6 +100,12 @@ impl From<Vec3> for Acceleration {
     }
 }
 
+impl Sprinting {
+    pub(super) fn new(multiplier: f32) -> Self {
+        Self { multiplier }
+    }
+}
+
 impl CollisionEvent {
     pub(super) fn new(entity: Entity, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Self {
         Self { entity, x, y, z }
@@ -108,13 +119,13 @@ impl Plugin for PhysicsPlugin {
                 FixedUpdate,
                 (
                     Self::remove_negligible_velocities,
-                    Self::apply_slipperiness,
+                    (Self::apply_slipperiness, Self::apply_sprint_multiplier),
                     Self::reduce_flight_velocity,
                     (Self::apply_accelerations, Self::apply_gravity),
                     Self::check_for_collisions,
                     Self::apply_velocities,
                     Self::update_grounded,
-                    Self::remove_flying,
+                    Self::update_flying,
                     (
                         Self::handle_collisions,
                         Self::apply_horizontal_drag,
@@ -182,6 +193,13 @@ impl PhysicsPlugin {
 
             acc.0.x *= (Self::SLIPPERINESS / slipperiness).powi(8);
             acc.0.z *= (Self::SLIPPERINESS / slipperiness).powi(8);
+        }
+    }
+
+    fn apply_sprint_multiplier(mut query: Query<(&mut Acceleration, &Sprinting)>) {
+        for (mut acc, sprinting) in &mut query {
+            acc.0.x *= sprinting.multiplier;
+            acc.0.z *= sprinting.multiplier;
         }
     }
 
@@ -272,7 +290,7 @@ impl PhysicsPlugin {
         }
     }
 
-    fn remove_flying(
+    fn update_flying(
         mut commands: Commands,
         mut query: Query<(Entity, &Velocity, &mut Acceleration), (With<Flying>, With<RigidBody>)>,
         mut events: EventReader<CollisionEvent>,

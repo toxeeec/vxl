@@ -6,7 +6,7 @@ use leafwing_input_manager::prelude::*;
 use crate::{
     physics::{
         Acceleration, CollisionEvent, Flying, Grounded, MovementBundle, PhysicalPosition,
-        PhysicsSet, RigidBody, Velocity,
+        PhysicsSet, RigidBody, Sprinting, Velocity,
     },
     sets::GameplaySet,
     settings,
@@ -73,6 +73,7 @@ impl PlayerBundle {
                 (MovementAction::Right, KeyCode::KeyD),
                 (MovementAction::Up, KeyCode::Space),
                 (MovementAction::Down, KeyCode::ShiftLeft),
+                (MovementAction::Sprint, KeyCode::ControlLeft),
             ])),
             physical_position: transform.into(),
             rigid_body: RigidBody::new(0.6, 1.8),
@@ -98,8 +99,8 @@ impl Plugin for PlayerPlugin {
                 (
                     Self::turn_player,
                     Self::handle_player_horizontal_movement,
-                    Self::handle_player_vertical_movement,
-                    Self::handle_player_jumping,
+                    Self::handle_player_flight,
+                    Self::handle_player_jump,
                 )
                     .chain()
                     .in_set(GameplaySet),
@@ -112,6 +113,7 @@ impl PlayerPlugin {
     const JUMP_VELOCITY: f32 = 10.0;
     const AUTOJUMP_COOLDOWN: Duration = Duration::from_millis(500);
     const DOUBLE_TAP_DELAY: Duration = Duration::from_millis(500);
+    const SPRINT_MULTIPLIER: f32 = 1.5;
 
     fn spawn_player(mut commands: Commands) {
         let pos = Vec3::new(0.0, 60.0, 0.0);
@@ -135,17 +137,31 @@ impl PlayerPlugin {
     }
 
     fn handle_player_horizontal_movement(
+        mut commands: Commands,
         mut query: Query<
-            (&Transform, &ActionState<MovementAction>, &mut Acceleration),
+            (
+                Entity,
+                &Transform,
+                &ActionState<MovementAction>,
+                &mut Acceleration,
+                Option<&Sprinting>,
+            ),
             With<Player>,
         >,
     ) {
-        let (transform, action_state, mut acc) = query.single_mut();
+        let (entity, transform, action_state, mut acc, sprinting) = query.single_mut();
 
         let mut direction = Vec3::ZERO;
 
         if action_state.pressed(&MovementAction::Forward) {
             direction += *transform.forward();
+            if action_state.pressed(&MovementAction::Sprint) && sprinting.is_none() {
+                commands
+                    .entity(entity)
+                    .insert(Sprinting::new(Self::SPRINT_MULTIPLIER));
+            }
+        } else if sprinting.is_some() {
+            commands.entity(entity).remove::<Sprinting>();
         }
         if action_state.pressed(&MovementAction::Backward) {
             direction += *transform.back();
@@ -163,7 +179,7 @@ impl PlayerPlugin {
         acc.0.z = direction.z * Self::ACCELERATION;
     }
 
-    fn handle_player_vertical_movement(
+    fn handle_player_flight(
         mut commands: Commands,
         mut query: Query<
             (
@@ -220,7 +236,7 @@ impl PlayerPlugin {
         }
     }
 
-    fn handle_player_jumping(
+    fn handle_player_jump(
         mut query: Query<
             (
                 &ActionState<MovementAction>,
