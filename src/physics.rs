@@ -124,8 +124,11 @@ impl Plugin for PhysicsPlugin {
                     (Self::apply_accelerations, Self::apply_gravity),
                     Self::check_for_collisions,
                     Self::apply_velocities,
-                    Self::update_grounded,
-                    Self::update_flying,
+                    (
+                        Self::update_grounded,
+                        Self::update_flying,
+                        Self::update_sprinting,
+                    ),
                     (
                         Self::handle_collisions,
                         Self::apply_horizontal_drag,
@@ -300,6 +303,20 @@ impl PhysicsPlugin {
                 if ev.y.is_some() && vel.0.y < 0.0 {
                     commands.entity(entity).remove::<Flying>();
                     acc.0.y = 0.0;
+                }
+            }
+        }
+    }
+
+    fn update_sprinting(
+        mut commands: Commands,
+        mut query: Query<Entity, (With<Sprinting>, With<RigidBody>)>,
+        mut events: EventReader<CollisionEvent>,
+    ) {
+        for ev in events.read() {
+            if let Ok(entity) = query.get_mut(ev.entity) {
+                if ev.x.is_some() || ev.z.is_some() {
+                    commands.entity(entity).remove::<Sprinting>();
                 }
             }
         }
