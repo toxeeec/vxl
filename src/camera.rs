@@ -4,10 +4,10 @@ use bevy::{core_pipeline::tonemapping::Tonemapping, prelude::*};
 use leafwing_input_manager::prelude::*;
 
 use crate::{
-    physics::PhysicsSet,
+    physics::{PhysicsSet, Sprinting},
     player::{CameraAction, Player},
     sets::GameplaySet,
-    settings,
+    settings::{self, FOV},
     state::AppState,
 };
 
@@ -17,6 +17,10 @@ pub(super) struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::InGame), Self::spawn_camera)
+            .add_systems(
+                FixedUpdate,
+                (Self::update_fov).after(PhysicsSet).in_set(GameplaySet),
+            )
             .add_systems(
                 Update,
                 (Self::tilt_camera, Self::copy_camera_transform)
@@ -83,5 +87,30 @@ impl CameraPlugin {
         let (_, pitch, _) = camera.rotation.to_euler(EulerRot::YXZ);
 
         camera.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
+    }
+
+    pub(super) fn update_fov(
+        mut q_proj: Query<&mut Projection>,
+        q_sprinting: Query<Option<&Sprinting>, With<Player>>,
+        time: Res<Time>,
+    ) {
+        const SPRINTING_FOV: f32 = FOV * 1.1;
+        const FOV_CHANGE_DURATION: f32 = 0.15;
+
+        let mut projection = q_proj.single_mut();
+        if let Projection::Perspective(PerspectiveProjection { fov, .. }) = &mut *projection {
+            let is_sprinting = q_sprinting.single().is_some();
+            let delta_seconds = time.delta_seconds();
+
+            let (base_fov, target_fov) = if is_sprinting {
+                (FOV, SPRINTING_FOV)
+            } else {
+                (SPRINTING_FOV, FOV)
+            };
+
+            let fov_diff = target_fov - base_fov;
+            let fov_step = fov_diff * delta_seconds / FOV_CHANGE_DURATION;
+            *fov = (*fov + fov_step).clamp(FOV, SPRINTING_FOV);
+        }
     }
 }
