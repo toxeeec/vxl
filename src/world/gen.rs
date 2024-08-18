@@ -22,8 +22,8 @@ pub(crate) struct WorldgenParams {
 
 #[derive(Resource, Debug)]
 pub(super) struct LoadingWorldgenParams {
-    is_loaded: bool,
     handle: Handle<TomlAsset>,
+    is_loaded: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -52,6 +52,17 @@ impl WorldgenParams {
         Self {
             height_bias,
             hilliness,
+        }
+    }
+}
+
+impl FromWorld for LoadingWorldgenParams {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
+        LoadingWorldgenParams {
+            handle: asset_server.load("worldgen.toml"),
+            is_loaded: false,
         }
     }
 }
@@ -134,17 +145,7 @@ impl Chunk {
 }
 
 impl WorldPlugin {
-    pub(super) fn setup_loading_worldgen_params(
-        mut commands: Commands,
-        asset_server: Res<AssetServer>,
-    ) {
-        commands.insert_resource(LoadingWorldgenParams {
-            is_loaded: false,
-            handle: asset_server.load("worldgen.toml"),
-        });
-    }
-
-    pub(super) fn load_worldgen_params(
+    pub(super) fn create_worldgen_params(
         mut commands: Commands,
         asset_server: Res<AssetServer>,
         mut loading_params: ResMut<LoadingWorldgenParams>,

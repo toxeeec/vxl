@@ -10,9 +10,8 @@ use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 
 use crate::{
-    player::PlayerChunkMoveEvent,
-    settings::RENDER_DISTANCE,
-    texture::{ChunkMaterial, ChunkTexture},
+    materials::ChunkMaterial, player::PlayerChunkMoveEvent, settings::RENDER_DISTANCE,
+    textures::BlocksTexture,
 };
 
 use super::{
@@ -28,7 +27,7 @@ impl WorldPlugin {
         mut commands: Commands,
         noise: Res<Noise>,
         params: Res<WorldgenParams>,
-        texture: Res<ChunkTexture>,
+        texture: Res<BlocksTexture>,
         db: Res<Db>,
         mut chunks: ResMut<Chunks>,
         mut entities: ResMut<ChunkEntities>,
@@ -156,7 +155,7 @@ impl WorldPlugin {
     pub(super) fn sync_chunk_entities(
         mut commands: Commands,
         chunks: Res<Chunks>,
-        texture: Res<ChunkTexture>,
+        texture: Res<BlocksTexture>,
         mut entities: ResMut<ChunkEntities>,
         mut materials: ResMut<Assets<ChunkMaterial>>,
     ) {

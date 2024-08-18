@@ -26,9 +26,9 @@ features = [
   "bevy_ui",
   "bevy_winit",
   "default_font",
+  "file_watcher",
   "multi_threaded",
   "png",
-  "asset_processor",
 ]
 
 [profile.dev]

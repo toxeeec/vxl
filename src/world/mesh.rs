@@ -9,7 +9,7 @@ use bevy::{
 };
 use strum::IntoEnumIterator;
 
-use crate::{direction::Direction, texture::ATTRIBUTE_DATA};
+use crate::{direction::Direction, materials::ATTRIBUTE_BLOCK_DATA};
 
 use super::{
     Chunk, ChunkEntities, Chunks, DirtyChunks, Neighbors, WorldPlugin, CHUNK_HEIGHT, CHUNK_WIDTH,
@@ -53,7 +53,7 @@ impl Chunk {
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::default(),
         )
-        .with_inserted_attribute(ATTRIBUTE_DATA, vertices)
+        .with_inserted_attribute(ATTRIBUTE_BLOCK_DATA, vertices)
         .with_inserted_indices(Indices::U32(indices))
     }
 }

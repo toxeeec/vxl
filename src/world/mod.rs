@@ -11,11 +11,13 @@ use bevy::{
     utils::{HashMap, HashSet},
 };
 use db::Db;
+use gen::LoadingWorldgenParams;
 use mesh::ChunkMeshingTasks;
 use spawn::ChunkSpawningTasks;
 
 use crate::{
-    block::BlockId, direction::Direction, sets::LoadingSet, state::AppState, texture::ChunkTexture,
+    block::BlockId, direction::Direction, sets::LoadingSet, state::AppState,
+    textures::BlocksTexture,
 };
 
 pub(super) use gen::{Noise, WorldgenParams};
@@ -119,16 +121,6 @@ impl DirtyChunks {
     }
 }
 
-impl WorldPlugin {
-    pub(super) fn is_loaded(params: Option<Res<WorldgenParams>>) -> bool {
-        params.is_some()
-    }
-
-    pub(super) fn is_generated(chunks: Res<Chunks>) -> bool {
-        !chunks.0.is_empty()
-    }
-}
-
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Chunks>()
@@ -137,20 +129,17 @@ impl Plugin for WorldPlugin {
             .init_resource::<ChunkSpawningTasks>()
             .init_resource::<ChunkMeshingTasks>()
             .init_resource::<Noise>()
+            .init_resource::<LoadingWorldgenParams>()
             .init_resource::<Db>()
-            .add_systems(
-                OnEnter(AppState::Loading),
-                Self::setup_loading_worldgen_params,
-            )
             .add_systems(OnEnter(AppState::Generating), Self::generate_world)
-            .add_systems(Update, (Self::load_worldgen_params).in_set(LoadingSet))
+            .add_systems(Update, (Self::create_worldgen_params).in_set(LoadingSet))
             .add_systems(
                 Update,
                 (
                     Self::despawn_chunks,
                     (
                         Self::sync_dirty_chunks,
-                        Self::sync_chunk_entities.run_if(resource_exists::<ChunkTexture>),
+                        Self::sync_chunk_entities.run_if(resource_exists::<BlocksTexture>),
                     ),
                     (
                         Self::spawn_chunks.run_if(resource_exists::<WorldgenParams>),
@@ -160,5 +149,15 @@ impl Plugin for WorldPlugin {
                 )
                     .chain(),
             );
+    }
+}
+
+impl WorldPlugin {
+    pub(super) fn is_loaded(params: Option<Res<WorldgenParams>>) -> bool {
+        params.is_some()
+    }
+
+    pub(super) fn is_generated(chunks: Res<Chunks>) -> bool {
+        !chunks.0.is_empty()
     }
 }

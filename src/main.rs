@@ -1,38 +1,49 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
-use bevy::{prelude::*, window::CursorGrabMode};
+use bevy::{
+    prelude::*,
+    window::{CursorGrabMode, PrimaryWindow},
+};
 use camera::CameraPlugin;
+use crosshair::CrosshairPlugin;
 use diagnostics::DiagnosticsPlugin;
+use materials::ChunkMaterial;
 use physics::PhysicsPlugin;
 use player::PlayerPlugin;
 use sets::{GameplaySet, LoadingSet};
 use state::AppState;
-use texture::ChunkMaterialPlugin;
+use textures::TexturesPlugin;
 use toml_asset::{TomlAsset, TomlLoader};
 use world::WorldPlugin;
 
 mod block;
 mod camera;
+mod crosshair;
 mod diagnostics;
 mod direction;
+mod materials;
 mod physics;
 mod player;
 mod sets;
 mod settings;
 mod state;
-mod texture;
+mod textures;
 mod toml_asset;
 mod world;
 
 fn main() {
     App::new()
+        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
+        .init_asset::<TomlAsset>()
+        .init_asset_loader::<TomlLoader>()
         .add_plugins((
-            DefaultPlugins.set(ImagePlugin::default_nearest()),
             CameraPlugin,
-            ChunkMaterialPlugin,
+            CrosshairPlugin,
             DiagnosticsPlugin,
+            MaterialPlugin::<ChunkMaterial>::default(),
             PhysicsPlugin,
             PlayerPlugin,
+            TexturesPlugin,
             WorldPlugin,
         ))
         .init_state::<AppState>()
@@ -44,15 +55,13 @@ fn main() {
                 LoadingSet.run_if(in_state(AppState::Loading)),
             ),
         )
-        .init_asset::<TomlAsset>()
-        .init_asset_loader::<TomlLoader>()
         .insert_resource(Msaa::Off)
         .add_systems(OnEnter(AppState::InGame), setup)
         .add_systems(
             Update,
             start_generating
                 .run_if(in_state(AppState::Loading))
-                .run_if(ChunkMaterialPlugin::is_loaded)
+                .run_if(TexturesPlugin::is_loaded)
                 .run_if(WorldPlugin::is_loaded),
         )
         .add_systems(
@@ -64,7 +73,7 @@ fn main() {
         .run();
 }
 
-fn setup(mut query: Query<&mut Window>) {
+fn setup(mut query: Query<&mut Window, With<PrimaryWindow>>) {
     let mut window = query.single_mut();
     window.cursor.visible = false;
     window.cursor.grab_mode = CursorGrabMode::Locked;

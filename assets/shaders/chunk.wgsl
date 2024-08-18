@@ -86,13 +86,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     return out;
 }
 
-struct FragmentInput {
-    @location(0) uv: vec2f,
-    @location(1) layer: u32,
-    @location(2) brightness: f32,
-}
-
 @fragment
-fn fragment(input: FragmentInput) -> @location(0) vec4f {
-    return textureSample(tex, smp, input.uv, input.layer) * input.brightness;
+fn fragment(in: VertexOutput) -> @location(0) vec4f {
+    return textureSample(tex, smp, in.uv, in.layer) * in.brightness;
 }
