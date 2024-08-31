@@ -69,8 +69,7 @@ impl WorldPlugin {
                         offset,
                         commands
                             .spawn(MaterialMeshBundle {
-                                material: materials
-                                    .add(ChunkMaterial::new(offset, texture.0.clone())),
+                                material: materials.add(ChunkMaterial::new(offset, &texture.0)),
                                 mesh: meshes.add(mesh),
                                 ..Default::default()
                             })
@@ -181,7 +180,7 @@ impl WorldPlugin {
                 *offset,
                 commands
                     .spawn(MaterialMeshBundle {
-                        material: materials.add(ChunkMaterial::new(*offset, texture.0.clone())),
+                        material: materials.add(ChunkMaterial::new(*offset, &texture.0)),
                         ..Default::default()
                     })
                     .id(),

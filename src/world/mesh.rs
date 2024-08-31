@@ -15,8 +15,6 @@ use super::{
     Chunk, ChunkEntities, Chunks, DirtyChunks, Neighbors, WorldPlugin, CHUNK_HEIGHT, CHUNK_WIDTH,
 };
 
-const FACE_INDICES: [u32; 6] = [0, 2, 1, 0, 3, 2];
-
 #[derive(Resource, Default, Debug)]
 pub(super) struct ChunkMeshingTasks(pub(super) HashMap<IVec2, Task<Mesh>>);
 
@@ -40,7 +38,7 @@ impl Chunk {
                 if neighbor_pos.y < 0 || self.block_at(neighbors, neighbor_pos).is_opaque() {
                     continue;
                 }
-                indices.extend(FACE_INDICES.map(|idx| vertices.len() as u32 + idx));
+                indices.extend([0, 1, 2, 0, 2, 3].map(|idx| vertices.len() as u32 + idx));
                 let mut data = block as i32;
                 data = (data << 3) | dir as i32;
                 data = (data << (CHUNK_WIDTH.ilog2() * 2 + CHUNK_HEIGHT.ilog2())) | i as i32;

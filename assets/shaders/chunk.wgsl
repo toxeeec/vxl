@@ -1,15 +1,6 @@
 #import bevy_pbr::mesh_functions::{get_world_from_local, mesh_position_local_to_clip}
 
-const block_grass = 1u;
-const block_dirt = 2u;
-const block_stone = 3u;
-
-const direction_north = 0u;
-const direction_east = 1u;
-const direction_south = 2u;
-const direction_west = 3u;
-const direction_up = 4u;
-const direction_down = 5u;
+#import blocks::{texture_layer};
 
 const chunk_width = 16i;
 const chunk_height = 256i;
@@ -31,32 +22,18 @@ struct VertexOutput {
     @location(2) brightness: f32,
 };
 
-fn texture_layer(block_id: u32, direction: u32) -> u32 {
-    switch block_id {
-        case block_grass: {
-            switch direction {
-                case direction_up: { return 0u; }
-                case direction_down: { return 2u; }
-                default: { return 1u; }
-            }
-        }
-        case block_dirt: { return 2u; }
-        case block_stone: { return 3u; }
-        default: { return u32(-1i); }
-    }
-}
 
 @vertex
 fn vertex(vertex: Vertex) -> VertexOutput {
     var block_vertices = array<array<vec3i, 4>, 6>(
-        array<vec3i, 4>(vec3i(1, 1, 0), vec3i(0, 1, 0), vec3i(0, 0, 0), vec3i(1, 0, 0)), // north (-z)
-        array<vec3i, 4>(vec3i(1, 1, 1), vec3i(1, 1, 0), vec3i(1, 0, 0), vec3i(1, 0, 1)), // east  (+x)
-        array<vec3i, 4>(vec3i(0, 1, 1), vec3i(1, 1, 1), vec3i(1, 0, 1), vec3i(0, 0, 1)), // south (+z)
-        array<vec3i, 4>(vec3i(0, 1, 0), vec3i(0, 1, 1), vec3i(0, 0, 1), vec3i(0, 0, 0)), // west  (-x)
-        array<vec3i, 4>(vec3i(0, 1, 0), vec3i(1, 1, 0), vec3i(1, 1, 1), vec3i(0, 1, 1)), // up    (-y)
-        array<vec3i, 4>(vec3i(0, 0, 1), vec3i(1, 0, 1), vec3i(1, 0, 0), vec3i(0, 0, 0)), // down  (+y)
+        array<vec3i, 4>(vec3i(0, 0, 1), vec3i(1, 0, 1), vec3i(1, 1, 1), vec3i(0, 1, 1)), // north (+z)
+        array<vec3i, 4>(vec3i(1, 0, 0), vec3i(0, 0, 0), vec3i(0, 1, 0), vec3i(1, 1, 0)), // south (-z)
+        array<vec3i, 4>(vec3i(1, 0, 1), vec3i(1, 0, 0), vec3i(1, 1, 0), vec3i(1, 1, 1)), // west  (+x)
+        array<vec3i, 4>(vec3i(0, 0, 0), vec3i(0, 0, 1), vec3i(0, 1, 1), vec3i(0, 1, 0)), // east  (-x)
+        array<vec3i, 4>(vec3i(1, 1, 0), vec3i(0, 1, 0), vec3i(0, 1, 1), vec3i(1, 1, 1)), // up    (-y)
+        array<vec3i, 4>(vec3i(1, 0, 1), vec3i(0, 0, 1), vec3i(0, 0, 0), vec3i(1, 0, 0)), // down  (+y)
     );
-    var uvs = array<vec2f, 4>(vec2f(1, 0), vec2f(0, 0), vec2f(0, 1), vec2f(1, 1));
+    var uvs = array<vec2f, 4>(vec2f(0, 1), vec2f(1, 1), vec2f(1, 0), vec2f(0, 0));
     var brightness_levels = array<f32, 6>(0.8, 0.6, 0.8, 0.6, 1.0, 0.5);
 
     var out: VertexOutput;

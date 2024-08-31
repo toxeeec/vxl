@@ -1,5 +1,7 @@
 #import bevy_render::view::View
 
+#import utils::rgb_to_gray;
+
 @group(0) @binding(0) var<uniform> view: View;
 @group(1) @binding(0) var background_tex: texture_2d<f32>;
 @group(1) @binding(1) var background_smp: sampler;
@@ -10,10 +12,6 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4f,
     @location(0) uv: vec2f,
 };
-
-fn rgb_to_gray(rgb: vec3f) -> f32 {
-    return rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114;
-}
 
 @vertex
 fn vertex(

@@ -97,12 +97,59 @@ impl Chunks {
         array_init(|i| {
             let dir = [
                 Direction::North,
-                Direction::East,
                 Direction::South,
                 Direction::West,
+                Direction::East,
             ][i];
             self.0.get(&(offset + IVec2::from(dir))).cloned()
         })
+    }
+
+    pub(super) fn traverse(&self, ray: Ray3d, max: f32) -> Option<(IVec3, BlockId)> {
+        fn offset(start: f32, diff: f32) -> f32 {
+            if diff.is_sign_positive() {
+                start.floor() + 1.0 - start
+            } else {
+                start - start.floor()
+            }
+        }
+
+        let start = ray.origin;
+        let end = ray.get_point(max);
+        let dir = (end - start).normalize();
+        let step = dir.signum().as_ivec3();
+
+        let mut pos = start.floor().as_ivec3();
+
+        let mut t_max = Vec3::new(
+            offset(start.x, dir.x),
+            offset(start.y, dir.y),
+            offset(start.z, dir.z),
+        ) / dir.abs();
+        let t_delta = Vec3::ONE / dir.abs();
+
+        let dist = ((end.x.floor() - start.x.floor()).abs()
+            + (end.y.floor() - start.y.floor()).abs()
+            + (end.z.floor() - start.z.floor()).abs()) as i32;
+
+        for _ in 0..=dist {
+            if let Some(block) = self.block_at(pos).take_if(|block| block.is_solid()) {
+                return Some((pos, block));
+            }
+
+            if t_max.x < t_max.y && t_max.x < t_max.z {
+                pos.x += step.x;
+                t_max.x += t_delta.x;
+            } else if t_max.y < t_max.z {
+                pos.y += step.y;
+                t_max.y += t_delta.y;
+            } else {
+                pos.z += step.z;
+                t_max.z += t_delta.z;
+            }
+        }
+
+        None
     }
 }
 
@@ -112,9 +159,9 @@ impl DirtyChunks {
 
         for dir in [
             Direction::North,
-            Direction::East,
             Direction::South,
             Direction::West,
+            Direction::East,
         ] {
             self.0.insert(offset + IVec2::from(dir));
         }

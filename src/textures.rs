@@ -15,6 +15,8 @@ pub(super) struct LoadingTextures {
     blocks_loaded: bool,
     crosshair: Handle<Image>,
     crosshair_loaded: bool,
+    block_overlay: Handle<Image>,
+    block_overlay_loaded: bool,
 }
 
 #[derive(Resource, Debug)]
@@ -22,6 +24,9 @@ pub(super) struct BlocksTexture(pub(super) Handle<Image>);
 
 #[derive(Resource, ExtractResource, Clone, Debug)]
 pub(super) struct CrosshairTexture(pub(super) Handle<Image>);
+
+#[derive(Resource, Debug)]
+pub(super) struct BlockOverlayTexture(pub(super) Handle<Image>);
 
 #[derive(Debug)]
 pub(super) struct TexturesPlugin;
@@ -35,6 +40,8 @@ impl FromWorld for LoadingTextures {
             blocks_loaded: false,
             crosshair: asset_server.load("textures/crosshair.png"),
             crosshair_loaded: false,
+            block_overlay: asset_server.load("textures/block_overlay.png"),
+            block_overlay_loaded: false,
         }
     }
 }
@@ -49,6 +56,7 @@ impl Plugin for TexturesPlugin {
                     (
                         Self::create_blocks_array_texture,
                         Self::create_crosshair_texture,
+                        Self::create_block_overlay_texture,
                     ),
                     Self::update_loaded_state,
                 )
@@ -75,6 +83,10 @@ impl TexturesPlugin {
 
         if asset_server.load_state(loading_textures.crosshair.id()) == LoadState::Loaded {
             loading_textures.crosshair_loaded = true;
+        }
+
+        if asset_server.load_state(loading_textures.block_overlay.id()) == LoadState::Loaded {
+            loading_textures.block_overlay_loaded = true;
         }
     }
 
@@ -131,5 +143,17 @@ impl TexturesPlugin {
         }
 
         commands.insert_resource(CrosshairTexture(loading_textures.crosshair.clone()));
+    }
+
+    fn create_block_overlay_texture(
+        mut commands: Commands,
+        loading_textures: Res<LoadingTextures>,
+        overlay: Option<Res<BlockOverlayTexture>>,
+    ) {
+        if !loading_textures.block_overlay_loaded || overlay.is_some() {
+            return;
+        }
+
+        commands.insert_resource(BlockOverlayTexture(loading_textures.block_overlay.clone()));
     }
 }
